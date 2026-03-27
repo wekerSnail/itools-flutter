@@ -107,6 +107,114 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
+  dynamic _parseObjectCompatible(String raw) {
+    final input = raw.trim();
+    if (input.isEmpty) {
+      throw const FormatException('object 类型不能为空');
+    }
+
+    // 1) Strict JSON first.
+    try {
+      return jsonDecode(input);
+    } catch (_) {
+      // continue with compatibility mode
+    }
+
+    // 2) Compatibility mode for JS-like object literal:
+    // - unquoted keys: {a:1} -> {"a":1}
+    // - single quoted strings: {'a':'b'} -> {"a":"b"}
+    // - trailing commas: {"a":1,} -> {"a":1}
+    final normalized = _normalizeJsLikeObjectToJson(input);
+
+    try {
+      return jsonDecode(normalized);
+    } catch (_) {
+      throw const FormatException(
+        'object 类型格式无效。\n示例：{"a":1,"name":"demo"} 或 {a:1, name:"demo"}',
+      );
+    }
+  }
+
+  String _normalizeJsLikeObjectToJson(String input) {
+    final quoted = StringBuffer();
+    var inDouble = false;
+    var inSingle = false;
+    var escaping = false;
+
+    for (var i = 0; i < input.length; i++) {
+      final ch = input[i];
+
+      if (inSingle) {
+        if (escaping) {
+          if (ch == '"') {
+            quoted.write(r'\"');
+          } else {
+            quoted.write(ch);
+          }
+          escaping = false;
+          continue;
+        }
+
+        if (ch == r'\') {
+          quoted.write(ch);
+          escaping = true;
+          continue;
+        }
+
+        if (ch == "'") {
+          quoted.write('"');
+          inSingle = false;
+          continue;
+        }
+
+        if (ch == '"') {
+          quoted.write(r'\"');
+        } else {
+          quoted.write(ch);
+        }
+        continue;
+      }
+
+      if (inDouble) {
+        quoted.write(ch);
+        if (escaping) {
+          escaping = false;
+          continue;
+        }
+        if (ch == r'\') {
+          escaping = true;
+        } else if (ch == '"') {
+          inDouble = false;
+        }
+        continue;
+      }
+
+      if (ch == '"') {
+        inDouble = true;
+        quoted.write(ch);
+        continue;
+      }
+
+      if (ch == "'") {
+        inSingle = true;
+        quoted.write('"');
+        continue;
+      }
+
+      quoted.write(ch);
+    }
+
+    var normalized = quoted.toString();
+
+    normalized = normalized.replaceAllMapped(
+      RegExp(r'([\{,]\s*)([A-Za-z_\$][A-Za-z0-9_\$-]*)(\s*):'),
+      (m) => '${m[1]}"${m[2]}"${m[3]}:',
+    );
+
+    normalized = normalized.replaceAll(RegExp(r',\s*([}\]])'), r'$1');
+    return normalized;
+  }
+
   Future<void> _pickStartAt() async {
     final date = await showDatePicker(
       context: context,
@@ -166,11 +274,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                 case TaskVariableType.boolean:
                   return boolValue;
                 case TaskVariableType.object:
-                  try {
-                    return jsonDecode(valueCtrl.text.trim());
-                  } catch (_) {
-                    throw const FormatException('object 类型请输入合法 JSON');
-                  }
+                  return _parseObjectCompatible(valueCtrl.text);
               }
             }
 
@@ -227,9 +331,20 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                         maxLines: type == TaskVariableType.object ? 8 : 1,
                         decoration: InputDecoration(
                           labelText: type == TaskVariableType.object
-                              ? '变量值（JSON）'
+                              ? '变量值（JSON / JS对象）'
                               : '变量值',
                           border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    if (type == TaskVariableType.object)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '兼容模式：支持 {a:1}、单引号、尾逗号，保存时会按标准 JSON 解析。',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
                         ),
                       ),
                     if (validationMessage != null) ...[

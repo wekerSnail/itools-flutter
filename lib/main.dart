@@ -18,8 +18,11 @@ Future<void> main() async {
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
-    await AppTrayService.instance.initialize();
   });
 
   runApp(const ToolboxApp());
+
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await AppTrayService.instance.initialize();
+  });
 }

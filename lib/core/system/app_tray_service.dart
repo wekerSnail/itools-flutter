@@ -19,12 +19,16 @@ class AppTrayService with TrayListener, WindowListener {
     }
 
     _initialized = true;
-    trayManager.addListener(this);
-    windowManager.addListener(this);
+    try {
+      trayManager.addListener(this);
+      windowManager.addListener(this);
 
-    await windowManager.setPreventClose(true);
-    await _setupLaunchAtStartup();
-    await _setupTray();
+      await windowManager.setPreventClose(true);
+      await _setupLaunchAtStartup();
+      await _setupTray();
+    } catch (e) {
+      stderr.writeln('[Tray] initialize failed: $e');
+    }
   }
 
   Future<void> _setupLaunchAtStartup() async {
@@ -36,7 +40,7 @@ class AppTrayService with TrayListener, WindowListener {
   }
 
   Future<void> _setupTray() async {
-    final iconPath = [
+    final projectIconPath = [
       Directory.current.path,
       'windows',
       'runner',
@@ -44,8 +48,23 @@ class AppTrayService with TrayListener, WindowListener {
       'app_icon.ico',
     ].join(Platform.pathSeparator);
 
-    if (await File(iconPath).exists()) {
-      await trayManager.setIcon(iconPath);
+    final assetIconPath = [
+      Directory.current.path,
+      'assets',
+      'tray_icon.ico',
+    ].join(Platform.pathSeparator);
+
+    var iconPathToUse = '';
+    if (await File(projectIconPath).exists()) {
+      iconPathToUse = projectIconPath;
+    } else if (await File(assetIconPath).exists()) {
+      iconPathToUse = assetIconPath;
+    }
+
+    if (iconPathToUse.isNotEmpty) {
+      await trayManager.setIcon(iconPathToUse);
+    } else {
+      stderr.writeln('[Tray] icon file not found, tray icon may not show.');
     }
 
     await trayManager.setToolTip('Windows 工具集');

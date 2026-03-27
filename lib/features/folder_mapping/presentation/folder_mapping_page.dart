@@ -19,8 +19,8 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
   final FolderMappingStore _store = FolderMappingStore();
   final FolderOpener _opener = const FolderOpener();
 
-  final List<FolderMapping> _mappings = <FolderMapping>[];
-  FolderMapping? _selected;
+  final List<FolderCollection> _collections = <FolderCollection>[];
+  FolderCollection? _selectedCollection;
 
   @override
   void initState() {
@@ -35,32 +35,124 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     }
 
     setState(() {
-      _mappings
+      _collections
         ..clear()
         ..addAll(loaded);
-      _selected = _mappings.isEmpty ? null : _mappings.first;
+      _selectedCollection = _collections.isEmpty ? null : _collections.first;
     });
   }
 
-  Future<void> _persist() => _store.save(_mappings);
+  Future<void> _persist() => _store.save(_collections);
 
-  Future<void> _createOrEdit({FolderMapping? original}) async {
-    final nameCtrl = TextEditingController(text: original?.name ?? '');
-    final sourceCtrl = TextEditingController(text: original?.sourcePath ?? '');
-    final targetCtrl = TextEditingController(text: original?.targetPath ?? '');
-
-    Future<void> pick(TextEditingController ctrl) async {
-      final path = await getDirectoryPath(confirmButtonText: '选择');
-      if (path != null) {
-        ctrl.text = path;
+  FolderCollection? _findCollection(String id) {
+    for (final c in _collections) {
+      if (c.id == id) {
+        return c;
       }
     }
+    return null;
+  }
 
-    final result = await showDialog<FolderMapping>(
+  Future<void> _createOrEditCollection({FolderCollection? original}) async {
+    final nameCtrl = TextEditingController(text: original?.name ?? '');
+
+    final result = await showDialog<FolderCollection>(
       context: context,
       builder: (_) {
         return AlertDialog(
-          title: Text(original == null ? '新增映射' : '编辑映射'),
+          title: Text(original == null ? '新增集合' : '编辑集合'),
+          content: SizedBox(
+            width: 460,
+            child: TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(
+                labelText: '集合名称',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) {
+                  return;
+                }
+
+                Navigator.of(context).pop(
+                  FolderCollection(
+                    id:
+                        original?.id ??
+                        '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
+                    name: name,
+                    items: original?.items ?? <FolderShortcut>[],
+                    createdAt: original?.createdAt ?? DateTime.now(),
+                  ),
+                );
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+
+    nameCtrl.dispose();
+
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      final idx = _collections.indexWhere((e) => e.id == result.id);
+      if (idx >= 0) {
+        _collections[idx] = result;
+      } else {
+        _collections.add(result);
+      }
+      _selectedCollection = _findCollection(result.id);
+    });
+    await _persist();
+  }
+
+  Future<void> _removeCollection(FolderCollection collection) async {
+    setState(() {
+      _collections.removeWhere((e) => e.id == collection.id);
+      if (_selectedCollection?.id == collection.id) {
+        _selectedCollection = _collections.isEmpty ? null : _collections.first;
+      }
+    });
+    await _persist();
+  }
+
+  Future<void> _createOrEditShortcut({FolderShortcut? original}) async {
+    final collection = _selectedCollection;
+    if (collection == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先创建并选择一个集合')));
+      return;
+    }
+
+    final nameCtrl = TextEditingController(text: original?.name ?? '');
+    final targetCtrl = TextEditingController(text: original?.targetPath ?? '');
+
+    Future<void> pickTarget() async {
+      final path = await getDirectoryPath(confirmButtonText: '选择目标目录');
+      if (path != null) {
+        targetCtrl.text = path;
+      }
+    }
+
+    final result = await showDialog<FolderShortcut>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: Text(original == null ? '新增快捷方式' : '编辑快捷方式'),
           content: SizedBox(
             width: 520,
             child: Column(
@@ -69,29 +161,9 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                 TextField(
                   controller: nameCtrl,
                   decoration: const InputDecoration(
-                    labelText: '映射名称',
+                    labelText: '快捷方式名称',
                     border: OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: sourceCtrl,
-                        decoration: const InputDecoration(
-                          labelText: '源目录',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () => pick(sourceCtrl),
-                      icon: const Icon(Icons.folder_open),
-                      tooltip: '选择目录',
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -107,9 +179,9 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: () => pick(targetCtrl),
+                      onPressed: pickTarget,
                       icon: const Icon(Icons.folder_open),
-                      tooltip: '选择目录',
+                      tooltip: '选择目标目录',
                     ),
                   ],
                 ),
@@ -123,20 +195,19 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (nameCtrl.text.trim().isEmpty ||
-                    sourceCtrl.text.trim().isEmpty ||
-                    targetCtrl.text.trim().isEmpty) {
+                final name = nameCtrl.text.trim();
+                final target = targetCtrl.text.trim();
+                if (name.isEmpty || target.isEmpty) {
                   return;
                 }
 
                 Navigator.of(context).pop(
-                  FolderMapping(
+                  FolderShortcut(
                     id:
                         original?.id ??
                         '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
-                    name: nameCtrl.text.trim(),
-                    sourcePath: sourceCtrl.text.trim(),
-                    targetPath: targetCtrl.text.trim(),
+                    name: name,
+                    targetPath: target,
                     createdAt: original?.createdAt ?? DateTime.now(),
                   ),
                 );
@@ -149,7 +220,6 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     );
 
     nameCtrl.dispose();
-    sourceCtrl.dispose();
     targetCtrl.dispose();
 
     if (result == null) {
@@ -157,23 +227,42 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     }
 
     setState(() {
-      final idx = _mappings.indexWhere((e) => e.id == result.id);
-      if (idx >= 0) {
-        _mappings[idx] = result;
-      } else {
-        _mappings.add(result);
+      final cIndex = _collections.indexWhere((e) => e.id == collection.id);
+      if (cIndex < 0) {
+        return;
       }
-      _selected = result;
+
+      final current = _collections[cIndex];
+      final items = List<FolderShortcut>.from(current.items);
+      final i = items.indexWhere((e) => e.id == result.id);
+      if (i >= 0) {
+        items[i] = result;
+      } else {
+        items.add(result);
+      }
+
+      _collections[cIndex] = current.copyWith(items: items);
+      _selectedCollection = _collections[cIndex];
     });
+
     await _persist();
   }
 
-  Future<void> _remove(FolderMapping mapping) async {
+  Future<void> _removeShortcut(FolderShortcut shortcut) async {
+    final collection = _selectedCollection;
+    if (collection == null) {
+      return;
+    }
+
     setState(() {
-      _mappings.removeWhere((e) => e.id == mapping.id);
-      if (_selected?.id == mapping.id) {
-        _selected = _mappings.isEmpty ? null : _mappings.first;
+      final cIndex = _collections.indexWhere((e) => e.id == collection.id);
+      if (cIndex < 0) {
+        return;
       }
+      final items = List<FolderShortcut>.from(_collections[cIndex].items)
+        ..removeWhere((e) => e.id == shortcut.id);
+      _collections[cIndex] = _collections[cIndex].copyWith(items: items);
+      _selectedCollection = _collections[cIndex];
     });
     await _persist();
   }
@@ -189,110 +278,177 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     await _opener.open(path);
   }
 
-  Widget _buildFolderTile(String title, String path) {
-    return Card(
-      child: ListTile(
-        title: Text(title),
-        subtitle: Text(path),
-        leading: const Icon(Icons.folder_outlined),
-        onTap: () => _openFolder(path),
-        onLongPress: () => _openFolder(path),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final collection = _selectedCollection;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('文件夹映射'),
+        title: const Text('文件夹快捷方式'),
         actions: [
           IconButton(
-            tooltip: '新增映射',
-            onPressed: () => _createOrEdit(),
-            icon: const Icon(Icons.add),
+            tooltip: '新增集合',
+            onPressed: () => _createOrEditCollection(),
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
+          IconButton(
+            tooltip: '新增快捷方式',
+            onPressed: () => _createOrEditShortcut(),
+            icon: const Icon(Icons.add_link_outlined),
           ),
         ],
       ),
       body: Row(
         children: [
           SizedBox(
-            width: 340,
+            width: 280,
             child: Column(
               children: [
                 ListTile(
-                  title: const Text('映射列表'),
+                  title: const Text('集合列表'),
                   trailing: IconButton(
-                    onPressed: () => _createOrEdit(),
+                    onPressed: () => _createOrEditCollection(),
                     icon: const Icon(Icons.add_circle_outline),
                   ),
                 ),
                 const Divider(height: 1),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: _mappings.length,
-                    itemBuilder: (_, index) {
-                      final item = _mappings[index];
-                      final selected = _selected?.id == item.id;
-                      return InkWell(
-                        onTap: () => setState(() => _selected = item),
-                        onDoubleTap: () => _openFolder(item.targetPath),
-                        child: Container(
-                          color: selected
-                              ? Theme.of(context).colorScheme.primaryContainer
-                              : null,
-                          child: ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.folder_special_outlined),
-                            title: Text(item.name),
-                            subtitle: Text(
-                              item.targetPath,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) async {
-                                if (value == 'edit') {
-                                  await _createOrEdit(original: item);
-                                  return;
-                                }
-                                if (value == 'delete') {
-                                  await _remove(item);
-                                }
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(value: 'edit', child: Text('编辑')),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('删除'),
+                  child: _collections.isEmpty
+                      ? const Center(child: Text('暂无集合'))
+                      : ListView.builder(
+                          itemCount: _collections.length,
+                          itemBuilder: (_, index) {
+                            final item = _collections[index];
+                            final selected = _selectedCollection?.id == item.id;
+                            return Container(
+                              color: selected
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
+                                  : null,
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.folder_special_outlined,
                                 ),
-                              ],
-                            ),
-                          ),
+                                title: Text(item.name),
+                                subtitle: Text('${item.items.length} 个快捷方式'),
+                                onTap: () {
+                                  setState(() => _selectedCollection = item);
+                                },
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _createOrEditCollection(
+                                        original: item,
+                                      );
+                                      return;
+                                    }
+                                    if (value == 'delete') {
+                                      await _removeCollection(item);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('编辑集合'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('删除集合'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
           ),
           const VerticalDivider(width: 1),
           Expanded(
-            child: _selected == null
-                ? const Center(child: Text('暂无映射，请点击左上角 + 创建'))
-                : ListView(
-                    padding: const EdgeInsets.all(16),
+            child: collection == null
+                ? const Center(child: Text('请先在左侧创建并选择一个集合'))
+                : Column(
                     children: [
-                      Text(
-                        _selected!.name,
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      ListTile(
+                        title: Text(
+                          '集合：${collection.name}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        subtitle: const Text('双击可直接打开目标目录'),
+                        trailing: FilledButton.tonalIcon(
+                          onPressed: () => _createOrEditShortcut(),
+                          icon: const Icon(Icons.add),
+                          label: const Text('新增快捷方式'),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      _buildFolderTile('源目录（单击打开）', _selected!.sourcePath),
-                      _buildFolderTile('目标目录（单击打开）', _selected!.targetPath),
-                      const SizedBox(height: 8),
-                      const Text('提示：左侧列表双击条目可直接打开目标目录。'),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: collection.items.isEmpty
+                            ? const Center(
+                                child: Text('此集合暂无快捷方式，点击“新增快捷方式”创建'),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(12),
+                                itemCount: collection.items.length,
+                                itemBuilder: (_, index) {
+                                  final item = collection.items[index];
+                                  return Card(
+                                    child: InkWell(
+                                      onTap: () => _openFolder(item.targetPath),
+                                      onDoubleTap: () =>
+                                          _openFolder(item.targetPath),
+                                      child: ListTile(
+                                        leading: const Icon(
+                                          Icons.shortcut_outlined,
+                                        ),
+                                        title: Text(item.name),
+                                        subtitle: Text(
+                                          item.targetPath,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        trailing: PopupMenuButton<String>(
+                                          onSelected: (value) async {
+                                            if (value == 'open') {
+                                              await _openFolder(
+                                                item.targetPath,
+                                              );
+                                              return;
+                                            }
+                                            if (value == 'edit') {
+                                              await _createOrEditShortcut(
+                                                original: item,
+                                              );
+                                              return;
+                                            }
+                                            if (value == 'delete') {
+                                              await _removeShortcut(item);
+                                            }
+                                          },
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem(
+                                              value: 'open',
+                                              child: Text('打开目录'),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'edit',
+                                              child: Text('编辑快捷方式'),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'delete',
+                                              child: Text('删除快捷方式'),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
                     ],
                   ),
           ),
