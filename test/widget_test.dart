@@ -7,7 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:myrepo/app.dart';
+import 'package:itools/app.dart';
 
 void main() {
   testWidgets('Home page is displayed', (WidgetTester tester) async {
