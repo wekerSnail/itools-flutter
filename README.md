@@ -40,7 +40,62 @@
 
 ---
 
-## 3. 定时任务功能说明
+## 2.1 构建与部署
+
+### 构建 Release 版本
+
+```bash
+flutter build windows --release
+```
+
+构建后应用文件位于：`build/windows/x64/runner/Release/`
+
+### 部署到其他电脑
+
+⚠️ **重要**：不要只复制 `itools.exe`，必须复制 **整个 Release 文件夹**（包括 DLL 和 data 文件夹）
+
+**部署方式**：
+
+1. **方式一**：复制整个文件夹
+
+   ```bash
+   # 从 build/windows/x64/runner/Release 复制所有文件到 dist 文件夹
+   xcopy "build\windows\x64\runner\Release\*" dist\itools\ /E /I
+   ```
+
+2. **方式二**：创建可执行的 ZIP 包
+   ```powershell
+   # 打包为 ZIP
+   Compress-Archive -Path build\windows\x64\runner\Release -DestinationPath itools-release.zip
+   # 在目标电脑上解压后双击 itools.exe 运行
+   ```
+
+### 部署包内容
+
+| 文件/文件夹           | 大小          | 说明                      |
+| --------------------- | ------------- | ------------------------- |
+| `itools.exe`          | 91 KB         | 主程序                    |
+| `flutter_windows.dll` | 17.7 MB       | Flutter 运行时            |
+| `*_plugin.dll`        | ~0.5 MB       | 各插件库（5个）           |
+| `data/`               | ~14.6 MB      | 字体、资源、Dart 运行时等 |
+| **总计**              | **~32.96 MB** | 完整可部署包              |
+
+### 目标电脑要求
+
+- **OS**：Windows 10/11 64-bit
+- **必需**：Visual C++ Redistributable 2022/2023
+  - 🔗 下载：[Microsoft Visual C++ Redistributable](https://support.microsoft.com/en-us/help/2977003)
+  - 或在微软官网搜索 "Visual C++ Redistributable 2023"
+- **可选**：Node.js（仅当使用 JS 脚本任务时需要）
+  - 🔗 下载：[nodejs.org](https://nodejs.org/)
+
+### 故障排查
+
+遇到部署问题？请参考 [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) 文档，包含常见问题和解决方案。
+
+---
+
+## 2.2 开发环境配置
 
 ### 3.0 页面结构（UI）
 
