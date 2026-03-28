@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/widgets/page_header.dart';
 import '../application/task_runner.dart';
 
 class TaskLogsPage extends StatelessWidget {
@@ -7,41 +9,80 @@ class TaskLogsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shad = ShadTheme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('运行日志')),
+      backgroundColor: shad.colorScheme.background,
+      appBar: PageHeader(
+        title: '运行日志',
+        showBack: true,
+      ),
       body: Column(
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Text('日志默认保留 5 天，超过时间会自动清理。'),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: shad.colorScheme.secondary,
+              border: Border(
+                bottom: BorderSide(color: shad.colorScheme.border),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.info,
+                  size: 14,
+                  color: shad.colorScheme.mutedForeground,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '日志默认保留 5 天，超过时间会自动清理。',
+                  style: shad.textTheme.muted.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: ValueListenableBuilder<List<String>>(
               valueListenable: TaskRunner.instance.logs,
               builder: (context, logs, _) {
                 if (logs.isEmpty) {
-                  return const Center(child: Text('暂无运行日志'));
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.fileX,
+                          size: 32,
+                          color: shad.colorScheme.mutedForeground,
+                        ),
+                        const SizedBox(height: 12),
+                        Text('暂无运行日志', style: shad.textTheme.muted),
+                      ],
+                    ),
+                  );
                 }
-
                 return ListView.separated(
                   reverse: true,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   itemCount: logs.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (_, index) {
-                    return Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Theme.of(context).dividerColor,
-                        ),
+                  separatorBuilder: (_, index) => const SizedBox(height: 6),
+                  itemBuilder: (_, i) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: shad.colorScheme.card,
+                      border: Border.all(color: shad.colorScheme.border),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: SelectableText(
+                      logs[i],
+                      style: shad.textTheme.small.copyWith(
+                        fontFamily: 'Consolas',
+                        fontSize: 12,
                       ),
-                      child: SelectableText(logs[index]),
-                    );
-                  },
+                    ),
+                  ),
                 );
               },
             ),

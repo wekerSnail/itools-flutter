@@ -42,6 +42,7 @@ dependencies:
   flutter_highlight: ^0.7.0
   tray_manager: ^0.5.1
   launch_at_startup: ^0.5.1
+  shadcn_ui: ^0.53.1
 
 dev_dependencies:
   flutter_test:
