@@ -1,0 +1,64 @@
+Resolving dependencies...
+Downloading packages...
+  characters 1.4.0 (1.4.1 available)
+  matcher 0.12.17 (0.12.19 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.18.2 available)
+  test_api 0.7.7 (0.7.11 available)
+  vector_math 2.2.0 (2.3.0 available)
+  win32 5.15.0 (6.0.0 available)
+  win32_registry 2.1.0 (3.0.2 available)
+Got dependencies!
+8 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Launching lib\main.dart on Windows in debug mode...
+Building Windows application...                                    13.7s
+鈭?Built build\windows\x64\runner\Debug\itools.exe
+[Main] Flutter binding initialized
+[Main] Window manager initialized
+[Main] Running app
+Syncing files to device Windows...                                 111ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on Windows is available at: http://127.0.0.1:6687/kg4ouDEvw2g=/
+The Flutter DevTools debugger and profiler on Windows is available at: http://127.0.0.1:6687/kg4ouDEvw2g=/devtools/?uri=ws://127.0.0.1:6687/kg4ouDEvw2g=/ws
+[Main] Window ready to show
+[Main] Window is now visible, initializing tray...
+[Tray] Starting initialization...
+[Tray] Adding listeners...
+[Tray] Setting window prevent close...
+[Tray] Waiting for platform to be ready...
+[Tray] Setting up tray...
+[Tray._setupTray] Starting...
+[Tray._setupTray] Checking project path: D:\repos\itools-flutter\windows\runner\resources\app_icon.ico
+[Tray._setupTray] Checking asset path: D:\repos\itools-flutter\assets\tray_icon.ico
+[Tray._setupTray] Checking built path: D:\repos\itools-flutter\build\windows\x64\runner\Release\data\flutter_assets\tray_icon.ico
+[Tray._setupTray] 鈭?Found at project path
+[Tray._setupTray] Setting tooltip...
+[Tray._setupTray] Setting context menu first...
+[Tray._setupTray] Now setting icon: D:\repos\itools-flutter\windows\runner\resources\app_icon.ico
+[Tray._setupTray] Normalized path: D:/repos/itools-flutter/windows/runner/resources/app_icon.ico
+[Tray._setupTray] 鈭?Icon set successfully
+[Tray._setupTray] 鈭?Setup complete!
+[Tray] Starting recovery check timer...
+[Tray] 鈭?Initialization complete!
+[Main] 鈭?Tray service initialized successfully
+[Tray._setupTray] Starting...
+[Tray._setupTray] Checking project path: D:\repos\itools-flutter\windows\runner\resources\app_icon.ico
+[Tray._setupTray] Checking asset path: D:\repos\itools-flutter\assets\tray_icon.ico
+[Tray._setupTray] Checking built path: D:\repos\itools-flutter\build\windows\x64\runner\Release\data\flutter_assets\tray_icon.ico
+[Tray._setupTray] 鈭?Found at project path
+[Tray._setupTray] Setting tooltip...
+[Tray._setupTray] Setting context menu first...
+[Tray._setupTray] Now setting icon: D:\repos\itools-flutter\windows\runner\resources\app_icon.ico
+[Tray._setupTray] Normalized path: D:/repos/itools-flutter/windows/runner/resources/app_icon.ico
+[Tray._setupTray] 鈭?Icon set successfully
+[Tray._setupTray] 鈭?Setup complete!
+Lost connection to device.

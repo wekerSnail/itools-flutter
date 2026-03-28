@@ -6,7 +6,10 @@ import 'core/system/app_tray_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('[Main] Flutter binding initialized');
+  
   await windowManager.ensureInitialized();
+  debugPrint('[Main] Window manager initialized');
 
   const windowOptions = WindowOptions(
     size: Size(980, 720),
@@ -16,13 +19,22 @@ Future<void> main() async {
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
+    debugPrint('[Main] Window ready to show');
     await windowManager.show();
     await windowManager.focus();
+    
+    // 在窗口显示后初始化托盘
+    debugPrint('[Main] Window is now visible, initializing tray...');
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+      await AppTrayService.instance.initialize();
+      debugPrint('[Main] ✓ Tray service initialized successfully');
+    } catch (e, st) {
+      debugPrint('[Main] ✗ Tray initialization failed: $e');
+      debugPrint('[Main] Stack: $st');
+    }
   });
 
+  debugPrint('[Main] Running app');
   runApp(const ToolboxApp());
-
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await AppTrayService.instance.initialize();
-  });
 }
