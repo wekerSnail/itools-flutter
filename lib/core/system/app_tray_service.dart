@@ -6,6 +6,9 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../router/app_navigation.dart';
+import '../router/app_routes.dart';
+
 class AppTrayService with TrayListener, WindowListener {
   AppTrayService._();
 
@@ -18,7 +21,9 @@ class AppTrayService with TrayListener, WindowListener {
 
   Future<void> initialize() async {
     if (_initialized || !Platform.isWindows) {
-      debugPrint('[Tray] Skipping initialization: _initialized=$_initialized, isWindows=${Platform.isWindows}');
+      debugPrint(
+        '[Tray] Skipping initialization: _initialized=$_initialized, isWindows=${Platform.isWindows}',
+      );
       return;
     }
 
@@ -33,20 +38,20 @@ class AppTrayService with TrayListener, WindowListener {
       // 设置窗口不能被关闭（最小化到托盘）
       debugPrint('[Tray] Setting window prevent close...');
       await windowManager.setPreventClose(true);
-      
+
       await _setupLaunchAtStartup();
-      
+
       // 延迟一下确保平台完全准备好
       debugPrint('[Tray] Waiting for platform to be ready...');
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       debugPrint('[Tray] Setting up tray...');
       await _setupTray();
 
       // 启动托盘恢复检查（每30秒检查一次）
       debugPrint('[Tray] Starting recovery check timer...');
       _startTrayRecoveryCheck();
-      
+
       debugPrint('[Tray] ✓ Initialization complete!');
     } catch (e) {
       debugPrint('[Tray] ✗ Initialize failed: $e');
@@ -58,18 +63,15 @@ class AppTrayService with TrayListener, WindowListener {
   /// 启动定期的托盘恢复检查
   void _startTrayRecoveryCheck() {
     _trayRecoveryTimer?.cancel();
-    _trayRecoveryTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) async {
-        try {
-          if (!_quitting && _initialized) {
-            await _ensureTrayExists();
-          }
-        } catch (e) {
-          stderr.writeln('[Tray] recovery check failed: $e');
+    _trayRecoveryTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      try {
+        if (!_quitting && _initialized) {
+          await _ensureTrayExists();
         }
-      },
-    );
+      } catch (e) {
+        stderr.writeln('[Tray] recovery check failed: $e');
+      }
+    });
   }
 
   /// 确保托盘存在，如果丢失则重建
@@ -97,7 +99,7 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> _setupTray() async {
     try {
       debugPrint('[Tray._setupTray] Starting...');
-      
+
       // 优先按可执行文件目录定位，兼容直接双击 Release\itools.exe 运行
       final executableDir = File(Platform.resolvedExecutable).parent.path;
       final currentDir = Directory.current.path;
@@ -116,10 +118,7 @@ class AppTrayService with TrayListener, WindowListener {
           'flutter_assets',
           'tray_icon.ico',
         ].join(Platform.pathSeparator),
-        [
-          executableDir,
-          'app_icon.ico',
-        ].join(Platform.pathSeparator),
+        [executableDir, 'app_icon.ico'].join(Platform.pathSeparator),
         [
           currentDir,
           'windows',
@@ -127,11 +126,7 @@ class AppTrayService with TrayListener, WindowListener {
           'resources',
           'app_icon.ico',
         ].join(Platform.pathSeparator),
-        [
-          currentDir,
-          'assets',
-          'tray_icon.ico',
-        ].join(Platform.pathSeparator),
+        [currentDir, 'assets', 'tray_icon.ico'].join(Platform.pathSeparator),
         [
           currentDir,
           'build',
@@ -159,19 +154,19 @@ class AppTrayService with TrayListener, WindowListener {
       if (iconPathToUse != null && iconPathToUse.isNotEmpty) {
         debugPrint('[Tray._setupTray] Setting tooltip...');
         await trayManager.setToolTip('Windows 工具集 - 点击打开主界面');
-        
+
         debugPrint('[Tray._setupTray] Setting context menu first...');
         await _refreshContextMenu();
-        
+
         debugPrint('[Tray._setupTray] Now setting icon: $iconPathToUse');
         // 转换为绝对路径（使用正斜杠）
         final absolutePath = File(iconPathToUse).absolute.path;
         final normalizedPath = absolutePath.replaceAll('\\', '/');
         debugPrint('[Tray._setupTray] Normalized path: $normalizedPath');
-        
+
         await trayManager.setIcon(normalizedPath, isTemplate: false);
         debugPrint('[Tray._setupTray] ✓ Icon set successfully');
-        
+
         debugPrint('[Tray._setupTray] ✓ Setup complete!');
       } else {
         debugPrint('[Tray._setupTray] ✗ Icon not found!');
@@ -192,6 +187,7 @@ class AppTrayService with TrayListener, WindowListener {
       Menu(
         items: [
           MenuItem(key: 'show', label: '打开主界面'),
+          MenuItem(key: 'backup_restore', label: '备份还原'),
           MenuItem.separator(),
           MenuItem(
             key: 'startup',
@@ -207,6 +203,20 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> _showMainWindow() async {
     await windowManager.show();
     await windowManager.focus();
+  }
+
+  Future<void> _openRoute(String routeName) async {
+    await _showMainWindow();
+
+    final navigator = appNavigatorKey.currentState;
+    if (navigator == null) {
+      return;
+    }
+
+    navigator.popUntil((route) => route.isFirst);
+    if (routeName != AppRoutes.home) {
+      navigator.pushNamed(routeName);
+    }
   }
 
   Future<void> _toggleStartup() async {
@@ -264,6 +274,9 @@ class AppTrayService with TrayListener, WindowListener {
       switch (menuItem.key) {
         case 'show':
           await _showMainWindow();
+          break;
+        case 'backup_restore':
+          await _openRoute(AppRoutes.backupRestore);
           break;
         case 'startup':
           await _toggleStartup();

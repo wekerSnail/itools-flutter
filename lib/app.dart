@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'core/router/app_navigation.dart';
 import 'core/router/app_router.dart';
+import 'core/router/app_routes.dart';
 
 class ToolboxApp extends StatelessWidget {
   const ToolboxApp({super.key});
@@ -15,12 +17,13 @@ class ToolboxApp extends StatelessWidget {
         brightness: Brightness.light,
         colorScheme: const ShadZincColorScheme.light(),
       ),
+      navigatorKey: appNavigatorKey,
       darkTheme: ShadThemeData(
         brightness: Brightness.dark,
         colorScheme: const ShadZincColorScheme.dark(),
       ),
       onGenerateRoute: AppRouter.onGenerateRoute,
-      initialRoute: AppRouter.home,
+      initialRoute: AppRoutes.home,
     );
   }
 }

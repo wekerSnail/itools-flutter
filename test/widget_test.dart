@@ -14,6 +14,8 @@ void main() {
     await tester.pumpWidget(const ToolboxApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('工具集首页'), findsOneWidget);
+    expect(find.text('Windows 工具集'), findsOneWidget);
+    expect(find.text('选择下方工具开始使用'), findsOneWidget);
+    expect(find.text('备份还原'), findsOneWidget);
   });
 }
