@@ -91,7 +91,18 @@ flutter build windows --release
 
 ### 故障排查
 
-遇到部署问题？请参考 [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) 文档，包含常见问题和解决方案。
+遇到部署问题？请参考 [docs/deployment/README.md](./docs/deployment/README.md) 文档，包含常见问题和解决方案。
+
+---
+
+## 文档导航
+
+为避免重复维护，文档已统一收敛到 `docs/` 目录：
+
+- 文档总览：[`docs/README.md`](./docs/README.md)
+- 托盘文档：[`docs/tray/README.md`](./docs/tray/README.md)
+- 部署文档：[`docs/deployment/README.md`](./docs/deployment/README.md)
+- 开发镜像：[`docs/development/mirror-setup.md`](./docs/development/mirror-setup.md)
 
 ---
 
