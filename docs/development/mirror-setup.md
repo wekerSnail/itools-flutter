@@ -14,23 +14,23 @@
 
 ## 2. 当前默认镜像
 
-- `PUB_HOSTED_URL=https://pub.aliyuncs.com`
-- `FLUTTER_STORAGE_BASE_URL=https://mirrors.aliyun.com/flutter`
+- `PUB_HOSTED_URL=https://mirrors.tuna.tsinghua.edu.cn/dart-pub`
+- `FLUTTER_STORAGE_BASE_URL=https://mirrors.tuna.tsinghua.edu.cn/flutter`
 
-可按需切换清华镜像（见脚本注释）。
+如遇镜像异常，可临时切回官方 `pub.dev` / `storage.googleapis.com`。
 
 ## 3. 手动临时设置（会话级）
 
 PowerShell:
 
-- `$env:PUB_HOSTED_URL = "https://pub.aliyuncs.com"`
-- `$env:FLUTTER_STORAGE_BASE_URL = "https://mirrors.aliyun.com/flutter"`
+- `$env:PUB_HOSTED_URL = "https://mirrors.tuna.tsinghua.edu.cn/dart-pub"`
+- `$env:FLUTTER_STORAGE_BASE_URL = "https://mirrors.tuna.tsinghua.edu.cn/flutter"`
 - `flutter pub get`
 
 CMD:
 
-- `set PUB_HOSTED_URL=https://pub.aliyuncs.com`
-- `set FLUTTER_STORAGE_BASE_URL=https://mirrors.aliyun.com/flutter`
+- `set PUB_HOSTED_URL=https://mirrors.tuna.tsinghua.edu.cn/dart-pub`
+- `set FLUTTER_STORAGE_BASE_URL=https://mirrors.tuna.tsinghua.edu.cn/flutter`
 - `flutter pub get`
 
 ## 4. 永久配置建议
@@ -42,3 +42,4 @@ CMD:
 - 脚本无法执行：检查 PowerShell 执行策略（`RemoteSigned`）
 - 仍然很慢：尝试切换镜像或清理缓存（`flutter pub cache clean`）
 - 下载异常：使用 `flutter pub get -v` 查看详细输出
+- 如果清华镜像暂时异常：清空 `PUB_HOSTED_URL` 与 `FLUTTER_STORAGE_BASE_URL`，直接回退到官方源后重试

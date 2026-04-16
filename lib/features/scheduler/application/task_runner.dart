@@ -41,6 +41,12 @@ class TaskRunner {
     });
   }
 
+  Future<void> runNow(ScheduledTask task) async {
+    await _ensureLogsLoaded();
+    _appendLog('[${DateTime.now()}] 手动触发任务 ${task.name}');
+    await _execute(task);
+  }
+
   void stop() {
     _timer?.cancel();
     _timer = null;

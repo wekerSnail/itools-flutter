@@ -18,6 +18,7 @@ class SchedulerPage extends StatefulWidget {
 class _SchedulerPageState extends State<SchedulerPage> {
   final SchedulerStore _store = SchedulerStore();
   final List<ScheduledTask> _tasks = <ScheduledTask>[];
+  final Set<String> _runningTaskIds = <String>{};
 
   @override
   void initState() {
@@ -64,6 +65,32 @@ class _SchedulerPageState extends State<SchedulerPage> {
     await _store.saveTasks(_tasks);
   }
 
+  void _showToast(String message) {
+    ShadToaster.of(context).show(ShadToast(description: Text(message)));
+  }
+
+  Future<void> _runTaskNow(ScheduledTask task) async {
+    if (_runningTaskIds.contains(task.id)) {
+      return;
+    }
+
+    setState(() => _runningTaskIds.add(task.id));
+    _showToast('开始测试运行：${task.name}');
+
+    try {
+      await TaskRunner.instance.runNow(task);
+      if (!mounted) return;
+      _showToast('任务已执行完成：${task.name}');
+    } catch (error) {
+      if (!mounted) return;
+      _showToast('任务执行失败：$error');
+    } finally {
+      if (mounted) {
+        setState(() => _runningTaskIds.remove(task.id));
+      }
+    }
+  }
+
   String _taskTypeLabel(ScheduledTaskType type) {
     switch (type) {
       case ScheduledTaskType.jsScript:
@@ -106,9 +133,9 @@ class _SchedulerPageState extends State<SchedulerPage> {
         actions: [
           ShadButton.ghost(
             size: ShadButtonSize.sm,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const TaskLogsPage()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const TaskLogsPage())),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -164,10 +191,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
           const SizedBox(height: 16),
           Text('暂无定时任务', style: shad.textTheme.large),
           const SizedBox(height: 6),
-          Text(
-            '点击右上角"添加任务"开始创建',
-            style: shad.textTheme.muted,
-          ),
+          Text('点击右上角"添加任务"开始创建', style: shad.textTheme.muted),
           const SizedBox(height: 20),
           ShadButton(
             onPressed: () => _openEditor(),
@@ -186,7 +210,11 @@ class _SchedulerPageState extends State<SchedulerPage> {
   }
 
   Widget _buildTaskCard(
-      BuildContext context, ShadThemeData shad, ScheduledTask task) {
+    BuildContext context,
+    ShadThemeData shad,
+    ScheduledTask task,
+  ) {
+    final isRunning = _runningTaskIds.contains(task.id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: ShadCard(
@@ -202,8 +230,9 @@ class _SchedulerPageState extends State<SchedulerPage> {
                     children: [
                       Text(
                         task.name,
-                        style: shad.textTheme.p
-                            .copyWith(fontWeight: FontWeight.w600),
+                        style: shad.textTheme.p.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       ShadBadge.secondary(
@@ -250,6 +279,17 @@ class _SchedulerPageState extends State<SchedulerPage> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ShadButton.ghost(
+                  size: ShadButtonSize.sm,
+                  onPressed: isRunning ? null : () => _runTaskNow(task),
+                  child: isRunning
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(LucideIcons.play, size: 15),
+                ),
                 ShadSwitch(
                   value: task.enabled,
                   onChanged: (v) => _toggleTask(task, v),
