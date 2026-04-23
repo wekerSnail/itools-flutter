@@ -86,13 +86,36 @@ class AppTrayService with TrayListener, WindowListener {
 
   Future<void> _setupLaunchAtStartup() async {
     try {
-      launchAtStartup.setup(
-        appName: 'Windows 工具集',
-        appPath: Platform.resolvedExecutable,
-      );
+      final executablePath = Platform.resolvedExecutable;
+      final absolutePath = File(executablePath).absolute.path;
+
+      debugPrint('[Tray] Setup launch at startup:');
+      debugPrint('[Tray]   - App name: Windows 工具集');
+      debugPrint('[Tray]   - Executable path: $executablePath');
+      debugPrint('[Tray]   - Absolute path: $absolutePath');
+
+      launchAtStartup.setup(appName: 'Windows 工具集', appPath: absolutePath);
+
       _launchAtStartupEnabled = await launchAtStartup.isEnabled();
+      debugPrint('[Tray] Launch at startup enabled: $_launchAtStartupEnabled');
+
+      // 打印注册表值供调试
+      if (Platform.isWindows) {
+        try {
+          final result = await Process.run('powershell', [
+            '-Command',
+            'Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" | Select-Object -Property "*工具集*", "*itools*"',
+          ]);
+          if (result.stdout.toString().isNotEmpty) {
+            debugPrint('[Tray] Registry value: ${result.stdout}');
+          }
+        } catch (e) {
+          debugPrint('[Tray] Failed to read registry: $e');
+        }
+      }
     } catch (e) {
       stderr.writeln('[Tray] setup launch at startup failed: $e');
+      debugPrint('[Tray] ✗ Launch at startup setup failed: $e');
     }
   }
 
