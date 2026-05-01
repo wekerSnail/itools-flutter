@@ -15,6 +15,8 @@ Future<void> main() async {
     return;
   }
 
+  debugPrint('[Main] Single instance acquired, continuing startup');
+
   await windowManager.ensureInitialized();
   debugPrint('[Main] Window manager initialized');
 
