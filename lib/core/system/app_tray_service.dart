@@ -17,6 +17,7 @@ class AppTrayService with TrayListener, WindowListener {
   bool _initialized = false;
   bool _quitting = false;
   bool _launchAtStartupEnabled = false;
+  bool _trayIconConfigured = false;
   Timer? _trayRecoveryTimer;
 
   Future<void> initialize() async {
@@ -43,7 +44,7 @@ class AppTrayService with TrayListener, WindowListener {
 
       // 延迟一下确保平台完全准备好
       debugPrint('[Tray] Waiting for platform to be ready...');
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
 
       debugPrint('[Tray] Setting up tray...');
       await _setupTray();
@@ -77,8 +78,11 @@ class AppTrayService with TrayListener, WindowListener {
   /// 确保托盘存在，如果丢失则重建
   Future<void> _ensureTrayExists() async {
     try {
-      // 尝试获取托盘状态，如果失败则重建
-      await _setupTray();
+      if (!_trayIconConfigured) {
+        await _setupTray();
+      }
+
+      await _refreshContextMenu();
     } catch (e) {
       stderr.writeln('[Tray] ensure tray exists failed: $e');
     }
@@ -212,6 +216,11 @@ class AppTrayService with TrayListener, WindowListener {
     try {
       debugPrint('[Tray._setupTray] Starting...');
 
+      if (_trayIconConfigured) {
+        debugPrint('[Tray._setupTray] Tray icon already configured, skipping');
+        return;
+      }
+
       // 优先按可执行文件目录定位，兼容直接双击 Release\itools.exe 运行
       final executableDir = File(Platform.resolvedExecutable).parent.path;
       final currentDir = Directory.current.path;
@@ -276,7 +285,8 @@ class AppTrayService with TrayListener, WindowListener {
         final normalizedPath = absolutePath.replaceAll('\\', '/');
         debugPrint('[Tray._setupTray] Normalized path: $normalizedPath');
 
-        await trayManager.setIcon(normalizedPath, isTemplate: false);
+        await trayManager.setIcon(normalizedPath);
+        _trayIconConfigured = true;
         debugPrint('[Tray._setupTray] ✓ Icon set successfully');
 
         debugPrint('[Tray._setupTray] ✓ Setup complete!');
@@ -350,6 +360,7 @@ class AppTrayService with TrayListener, WindowListener {
     _quitting = true;
     _trayRecoveryTimer?.cancel();
     try {
+      _trayIconConfigured = false;
       await trayManager.destroy();
       await windowManager.setPreventClose(false);
       await windowManager.close();
