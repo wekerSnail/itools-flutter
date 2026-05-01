@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../router/app_routes.dart';
 import '../../features/backup_restore/presentation/backup_restore_page.dart';
 import '../../features/folder_mapping/presentation/folder_mapping_page.dart';
+import '../../features/json_formatter/presentation/json_formatter_page.dart';
 import '../../features/scheduler/presentation/scheduler_page.dart';
 import 'tool_descriptor.dart';
 
@@ -33,6 +34,14 @@ class ToolRegistry {
       icon: Icons.restore_page_outlined,
       route: AppRoutes.backupRestore,
       builder: (_) => const BackupRestorePage(),
+    ),
+    ToolDescriptor(
+      id: 'json_formatter',
+      title: 'JSON 格式化',
+      description: '格式化、压缩、转义JSON数据',
+      icon: Icons.data_object,
+      route: AppRoutes.jsonFormatter,
+      builder: (_) => const JsonFormatterPage(),
     ),
   ];
 }

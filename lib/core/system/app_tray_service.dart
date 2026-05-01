@@ -99,23 +99,112 @@ class AppTrayService with TrayListener, WindowListener {
       _launchAtStartupEnabled = await launchAtStartup.isEnabled();
       debugPrint('[Tray] Launch at startup enabled: $_launchAtStartupEnabled');
 
-      // 打印注册表值供调试
+      if (!_launchAtStartupEnabled) {
+        debugPrint('[Tray] Attempting to enable launch at startup...');
+        await launchAtStartup.enable();
+        _launchAtStartupEnabled = await launchAtStartup.isEnabled();
+        debugPrint('[Tray] Launch at startup enabled after attempt: $_launchAtStartupEnabled');
+      }
+
       if (Platform.isWindows) {
-        try {
-          final result = await Process.run('powershell', [
-            '-Command',
-            'Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" | Select-Object -Property "*工具集*", "*itools*"',
-          ]);
-          if (result.stdout.toString().isNotEmpty) {
-            debugPrint('[Tray] Registry value: ${result.stdout}');
-          }
-        } catch (e) {
-          debugPrint('[Tray] Failed to read registry: $e');
-        }
+        await _verifyRegistry();
       }
     } catch (e) {
       stderr.writeln('[Tray] setup launch at startup failed: $e');
       debugPrint('[Tray] ✗ Launch at startup setup failed: $e');
+    }
+  }
+
+  Future<void> _verifyRegistry() async {
+    try {
+      final result = await Process.run('powershell', [
+        '-Command',
+        'Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" | Select-Object -Property "*工具集*"',
+      ]);
+
+      if (result.stdout.toString().trim().isNotEmpty) {
+        debugPrint('[Tray] Registry verification: ${result.stdout}');
+      } else {
+        debugPrint('[Tray] Warning: Registry entry not found, attempting manual setup...');
+        await _manualSetRegistry();
+      }
+    } catch (e) {
+      debugPrint('[Tray] Failed to verify registry: $e');
+    }
+  }
+
+  Future<void> _manualSetRegistry() async {
+    try {
+      final executablePath = Platform.resolvedExecutable;
+      final absolutePath = File(executablePath).absolute.path;
+      final appDir = File(absolutePath).parent.path;
+      final vbsPath = '$appDir\\launch-elevated.vbs';
+
+      debugPrint('[Tray] Creating VBS script: $vbsPath');
+
+      final vbsContent = 'Set objShell = CreateObject("Shell.Application")\n'
+          'objShell.ShellExecute "$absolutePath", "", "$appDir", "runas", 1\n';
+
+      await File(vbsPath).writeAsString(vbsContent);
+      debugPrint('[Tray] VBS script created successfully');
+
+      final regCommand =
+          'Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" '
+          '-Name "Windows 工具集" -Value "wscript.exe \\"$vbsPath\\"" -Force';
+
+      final result = await Process.run('powershell', ['-Command', regCommand]);
+
+      if (result.exitCode == 0) {
+        debugPrint('[Tray] ✓ Registry updated successfully via VBS script');
+        _launchAtStartupEnabled = true;
+      } else {
+        debugPrint('[Tray] ✗ Failed to update registry: ${result.stderr}');
+      }
+    } catch (e) {
+      debugPrint('[Tray] ✗ Manual registry setup failed: $e');
+    }
+  }
+
+  Future<bool> checkLaunchAtStartupStatus() async {
+    try {
+      final isEnabled = await launchAtStartup.isEnabled();
+      debugPrint('[Tray] Launch at startup status: $isEnabled');
+
+      if (Platform.isWindows) {
+        final result = await Process.run('powershell', [
+          '-Command',
+          'Get-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" | Select-Object -Property "*工具集*"',
+        ]);
+
+        final registryValue = result.stdout.toString().trim();
+        debugPrint('[Tray] Registry check: $registryValue');
+
+        if (registryValue.isEmpty) {
+          debugPrint('[Tray] Registry entry missing, launch at startup may not work');
+          return false;
+        }
+      }
+
+      return isEnabled;
+    } catch (e) {
+      debugPrint('[Tray] Failed to check launch at startup status: $e');
+      return false;
+    }
+  }
+
+  Future<bool> fixLaunchAtStartup() async {
+    try {
+      debugPrint('[Tray] Fixing launch at startup...');
+
+      await launchAtStartup.disable();
+      await _setupLaunchAtStartup();
+
+      final isEnabled = await checkLaunchAtStartupStatus();
+      debugPrint('[Tray] Launch at startup fix result: $isEnabled');
+      return isEnabled;
+    } catch (e) {
+      debugPrint('[Tray] Failed to fix launch at startup: $e');
+      return false;
     }
   }
 
@@ -249,6 +338,10 @@ class AppTrayService with TrayListener, WindowListener {
     } else {
       await launchAtStartup.enable();
       _launchAtStartupEnabled = true;
+
+      if (Platform.isWindows) {
+        await _verifyRegistry();
+      }
     }
     await _refreshContextMenu();
   }

@@ -1,0 +1,162 @@
+import 'package:flutter/material.dart';
+
+class JsonSyntaxHighlighter extends StatelessWidget {
+  const JsonSyntaxHighlighter({
+    super.key,
+    required this.json,
+    this.style,
+  });
+
+  final String json;
+  final TextStyle? style;
+
+  static const Color stringColor = Color(0xFF22C55E);
+  static const Color numberColor = Color(0xFF3B82F6);
+  static const Color booleanColor = Color(0xFFA855F7);
+  static const Color nullColor = Color(0xFF6B7280);
+  static const Color keyColor = Color(0xFFE06C75);
+  static const Color punctuationColor = Color(0xFFABB2BF);
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultStyle = style ??
+        const TextStyle(
+          fontFamily: 'Consolas',
+          fontSize: 13,
+          color: Color(0xFFABB2BF),
+        );
+
+    return SelectableText.rich(
+      TextSpan(
+        style: defaultStyle,
+        children: _highlight(json, defaultStyle),
+      ),
+    );
+  }
+
+  List<TextSpan> _highlight(String source, TextStyle defaultStyle) {
+    if (source.isEmpty) return [TextSpan(text: source)];
+
+    final spans = <TextSpan>[];
+    int i = 0;
+
+    while (i < source.length) {
+      final char = source[i];
+
+      if (char == '"') {
+        final end = _findStringEnd(source, i);
+        final raw = source.substring(i, end + 1);
+
+        final isKey = _isKeyPosition(source, i);
+        final color = isKey ? keyColor : stringColor;
+
+        spans.add(TextSpan(
+          text: raw,
+          style: TextStyle(color: color),
+        ));
+        i = end + 1;
+      } else if (char == '-' ||
+          (char.codeUnitAt(0) >= 48 && char.codeUnitAt(0) <= 57)) {
+        final end = _findNumberEnd(source, i);
+        spans.add(TextSpan(
+          text: source.substring(i, end),
+          style: const TextStyle(color: numberColor),
+        ));
+        i = end;
+      } else if (source.startsWith('true', i)) {
+        spans.add(const TextSpan(
+          text: 'true',
+          style: TextStyle(color: booleanColor),
+        ));
+        i += 4;
+      } else if (source.startsWith('false', i)) {
+        spans.add(const TextSpan(
+          text: 'false',
+          style: TextStyle(color: booleanColor),
+        ));
+        i += 5;
+      } else if (source.startsWith('null', i)) {
+        spans.add(const TextSpan(
+          text: 'null',
+          style: TextStyle(color: nullColor),
+        ));
+        i += 4;
+      } else if (char == '{' ||
+          char == '}' ||
+          char == '[' ||
+          char == ']' ||
+          char == ':' ||
+          char == ',') {
+        spans.add(TextSpan(
+          text: char,
+          style: const TextStyle(color: punctuationColor),
+        ));
+        i++;
+      } else {
+        final end = _findNextToken(source, i);
+        spans.add(TextSpan(text: source.substring(i, end)));
+        i = end;
+      }
+    }
+
+    return spans;
+  }
+
+  int _findStringEnd(String source, int start) {
+    int i = start + 1;
+    while (i < source.length) {
+      if (source[i] == '\\') {
+        i += 2;
+        continue;
+      }
+      if (source[i] == '"') return i;
+      i++;
+    }
+    return source.length - 1;
+  }
+
+  int _findNumberEnd(String source, int start) {
+    int i = start;
+    if (source[i] == '-') i++;
+    while (i < source.length &&
+        (source[i].codeUnitAt(0) >= 48 && source[i].codeUnitAt(0) <= 57 ||
+            source[i] == '.' ||
+            source[i] == 'e' ||
+            source[i] == 'E' ||
+            source[i] == '+' ||
+            source[i] == '-')) {
+      i++;
+    }
+    return i;
+  }
+
+  int _findNextToken(String source, int start) {
+    int i = start;
+    while (i < source.length &&
+        source[i] != '"' &&
+        source[i] != '{' &&
+        source[i] != '}' &&
+        source[i] != '[' &&
+        source[i] != ']' &&
+        source[i] != ':' &&
+        source[i] != ',' &&
+        !(source[i].codeUnitAt(0) >= 48 && source[i].codeUnitAt(0) <= 57) &&
+        source[i] != '-') {
+      i++;
+    }
+    return i;
+  }
+
+  bool _isKeyPosition(String source, int stringStart) {
+    int i = stringStart - 1;
+    while (i >= 0 &&
+        (source[i] == ' ' ||
+            source[i] == '\n' ||
+            source[i] == '\r' ||
+            source[i] == '\t')) {
+      i--;
+    }
+    if (i < 0) return false;
+    return source[i] == ',' || source[i] == '{' || source[i] == '[';
+  }
+}
