@@ -10,12 +10,12 @@ class JsonSyntaxHighlighter extends StatelessWidget {
   final String json;
   final TextStyle? style;
 
-  static const Color stringColor = Color(0xFF22C55E);
-  static const Color numberColor = Color(0xFF3B82F6);
-  static const Color booleanColor = Color(0xFFA855F7);
-  static const Color nullColor = Color(0xFF6B7280);
-  static const Color keyColor = Color(0xFFE06C75);
-  static const Color punctuationColor = Color(0xFFABB2BF);
+  static const Color stringColor = Color(0xFF15803D);
+  static const Color numberColor = Color(0xFF1D4ED8);
+  static const Color booleanColor = Color(0xFF7C3AED);
+  static const Color nullColor = Color(0xFF4B5563);
+  static const Color keyColor = Color(0xFFDC2626);
+  static const Color punctuationColor = Color(0xFF6B7280);
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,7 @@ class JsonSyntaxHighlighter extends StatelessWidget {
         const TextStyle(
           fontFamily: 'Consolas',
           fontSize: 13,
-          color: Color(0xFFABB2BF),
+          color: Color(0xFF374151),
         );
 
     return SelectableText.rich(

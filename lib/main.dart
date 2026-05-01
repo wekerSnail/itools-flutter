@@ -3,11 +3,18 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'core/system/app_tray_service.dart';
+import 'core/system/single_instance_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPrint('[Main] Flutter binding initialized');
-  
+
+  final singleInstance = SingleInstanceManager.instance;
+  if (!singleInstance.tryAcquire()) {
+    debugPrint('[Main] Another instance is already running, exiting');
+    return;
+  }
+
   await windowManager.ensureInitialized();
   debugPrint('[Main] Window manager initialized');
 
@@ -23,7 +30,6 @@ Future<void> main() async {
     await windowManager.show();
     await windowManager.focus();
     
-    // 在窗口显示后初始化托盘
     debugPrint('[Main] Window is now visible, initializing tray...');
     try {
       await Future.delayed(const Duration(milliseconds: 300));
