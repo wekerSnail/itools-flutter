@@ -41,6 +41,8 @@ dependencies:
   launch_at_startup: ^0.5.1
   shadcn_ui: ^0.53.1
   win32: ^5.15.0
+  re_editor: ^0.8.0
+  re_highlight: ^0.0.3
 
 dev_dependencies:
   flutter_test:

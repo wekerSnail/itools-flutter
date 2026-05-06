@@ -15,12 +15,14 @@ class JsonToolbar extends StatelessWidget {
   const JsonToolbar({
     super.key,
     required this.onOperation,
+    required this.onSmartRepair,
     required this.onSwap,
     required this.onCopy,
     required this.onClear,
   });
 
   final ValueChanged<JsonOperation> onOperation;
+  final VoidCallback onSmartRepair;
   final VoidCallback onSwap;
   final VoidCallback onCopy;
   final VoidCallback onClear;
@@ -48,6 +50,21 @@ class JsonToolbar extends StatelessWidget {
               ),
             );
           }),
+          const SizedBox(width: 8),
+          Container(width: 1, height: 20, color: shad.colorScheme.border),
+          const SizedBox(width: 8),
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: onSmartRepair,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.zap, size: 14),
+                SizedBox(width: 4),
+                Text('智能修复'),
+              ],
+            ),
+          ),
           const Spacer(),
           ShadButton.ghost(
             size: ShadButtonSize.sm,

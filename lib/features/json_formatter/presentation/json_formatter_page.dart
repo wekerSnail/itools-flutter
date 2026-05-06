@@ -6,17 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/widgets/page_header.dart';
 import '../domain/json_formatter_service.dart';
-import 'widgets/json_editable_text_field.dart';
+import 'widgets/json_code_editor.dart';
 import 'widgets/json_toolbar.dart';
-import 'widgets/json_tree_view.dart';
-
-enum JsonViewMode {
-  code('代码'),
-  tree('树形');
-
-  const JsonViewMode(this.label);
-  final String label;
-}
 
 class JsonFormatterPage extends StatefulWidget {
   const JsonFormatterPage({super.key});
@@ -30,11 +21,12 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _outputController = TextEditingController();
 
-  JsonViewMode _viewMode = JsonViewMode.code;
   bool _isValid = true;
   String? _errorMessage;
   String? _statusMessage;
   Timer? _debounceTimer;
+  double _splitRatio = 0.5;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -150,6 +142,33 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
   }
 
+  void _smartRepair() {
+    final input = _inputController.text;
+    if (input.isEmpty) {
+      _showToast('请输入 JSON 内容');
+      return;
+    }
+    if (_service.isValid(input)) {
+      _showToast('JSON 已经是有效格式');
+      return;
+    }
+
+    final repaired = _service.smartRepair(input);
+    if (repaired != null) {
+      setState(() {
+        _inputController.text = repaired;
+        _isValid = true;
+        _errorMessage = null;
+        _statusMessage = '智能修复成功';
+      });
+    } else {
+      setState(() {
+        _errorMessage = '无法自动修复该 JSON';
+        _statusMessage = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
@@ -165,6 +184,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         children: [
           JsonToolbar(
             onOperation: _execute,
+            onSmartRepair: _smartRepair,
             onSwap: _swap,
             onCopy: _copyOutput,
             onClear: _clear,
@@ -173,13 +193,25 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _buildInputPanel(shad)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildOutputPanel(shad)),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final totalWidth = constraints.maxWidth;
+                  const dividerWidth = 6.0;
+                  const minPanelWidth = 300.0;
+                  final availableWidth = totalWidth - dividerWidth;
+                  final leftWidth =
+                      (availableWidth * _splitRatio).clamp(minPanelWidth, availableWidth - minPanelWidth);
+                  final rightWidth = availableWidth - leftWidth;
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: leftWidth, child: _buildInputPanel(shad)),
+                      _buildDivider(shad),
+                      SizedBox(width: rightWidth, child: _buildOutputPanel(shad)),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -240,6 +272,42 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               style: shad.textTheme.muted.copyWith(fontSize: 12),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDivider(ShadThemeData shad) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => setState(() => _isDragging = true),
+      onHorizontalDragUpdate: (details) {
+        final renderBox = context.findRenderObject() as RenderBox;
+        final totalWidth = renderBox.size.width - 40; // minus padding
+        const dividerWidth = 6.0;
+        final availableWidth = totalWidth - dividerWidth;
+        setState(() {
+          _splitRatio =
+              (_splitRatio + details.delta.dx / availableWidth).clamp(0.2, 0.8);
+        });
+      },
+      onHorizontalDragEnd: (_) => setState(() => _isDragging = false),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        child: Container(
+          width: 6,
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              width: _isDragging ? 3 : 2,
+              decoration: BoxDecoration(
+                color: _isDragging
+                    ? shad.colorScheme.primary
+                    : shad.colorScheme.border,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -311,82 +379,20 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                 ),
                 const SizedBox(width: 6),
                 Text('输出', style: shad.textTheme.p),
-                const Spacer(),
-                _buildViewModeToggle(shad),
               ],
             ),
           ),
           Expanded(
-            child: _viewMode == JsonViewMode.code
-                ? _buildCodeView(shad)
-                : JsonTreeView(jsonString: _outputController.text),
+            child: JsonCodeEditor(
+              jsonString: _outputController.text,
+              hintText: '结果将显示在此处...',
+              onChanged: (text) {
+                _outputController.text = text;
+              },
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildViewModeToggle(ShadThemeData shad) {
-    return Container(
-      height: 28,
-      decoration: BoxDecoration(
-        border: Border.all(color: shad.colorScheme.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildViewModeButton(
-            shad,
-            mode: JsonViewMode.code,
-            icon: LucideIcons.code,
-          ),
-          Container(
-            width: 1,
-            color: shad.colorScheme.border,
-          ),
-          _buildViewModeButton(
-            shad,
-            mode: JsonViewMode.tree,
-            icon: LucideIcons.network,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildViewModeButton(
-    ShadThemeData shad, {
-    required JsonViewMode mode,
-    required IconData icon,
-  }) {
-    final selected = _viewMode == mode;
-    return InkWell(
-      onTap: () => setState(() => _viewMode = mode),
-      borderRadius: BorderRadius.circular(5),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected
-              ? shad.colorScheme.muted.withValues(alpha: 0.5)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Icon(
-          icon,
-          size: 14,
-          color: selected
-              ? shad.colorScheme.foreground
-              : shad.colorScheme.mutedForeground,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCodeView(ShadThemeData shad) {
-    return JsonEditableTextField(
-      controller: _outputController,
-      hintText: '结果将显示在此处...',
     );
   }
 }
