@@ -89,9 +89,15 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           result = _service.unescape(input);
       }
       setState(() {
-        _outputController.text = result;
+        if (operation == JsonOperation.escape ||
+            operation == JsonOperation.unescape) {
+          _inputController.text = result;
+          _isValid = _service.isValid(result);
+          _errorMessage = _isValid ? null : 'JSON 格式无效';
+        } else {
+          _outputController.text = result;
+        }
         _statusMessage = '${operation.label}完成';
-        _errorMessage = null;
       });
     } on FormatException catch (e) {
       setState(() {
