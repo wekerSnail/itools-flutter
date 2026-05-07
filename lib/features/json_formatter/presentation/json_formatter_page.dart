@@ -183,7 +183,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(
         title: 'JSON 格式化',
-        subtitle: '格式化、压缩、转义及代码转换',
+        subtitle: '格式化、压缩、转义及智能修复',
         showBack: true,
       ),
       body: Column(
@@ -205,8 +205,10 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                   const dividerWidth = 6.0;
                   const minPanelWidth = 300.0;
                   final availableWidth = totalWidth - dividerWidth;
-                  final leftWidth =
-                      (availableWidth * _splitRatio).clamp(minPanelWidth, availableWidth - minPanelWidth);
+                  final leftWidth = (availableWidth * _splitRatio).clamp(
+                    minPanelWidth,
+                    availableWidth - minPanelWidth,
+                  );
                   final rightWidth = availableWidth - leftWidth;
 
                   return Row(
@@ -214,7 +216,10 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                     children: [
                       SizedBox(width: leftWidth, child: _buildInputPanel(shad)),
                       _buildDivider(shad),
-                      SizedBox(width: rightWidth, child: _buildOutputPanel(shad)),
+                      SizedBox(
+                        width: rightWidth,
+                        child: _buildOutputPanel(shad),
+                      ),
                     ],
                   );
                 },
@@ -254,10 +259,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               ),
             ),
           ] else
-            Text(
-              '等待输入',
-              style: shad.textTheme.muted.copyWith(fontSize: 12),
-            ),
+            Text('等待输入', style: shad.textTheme.muted.copyWith(fontSize: 12)),
           const Spacer(),
           if (_errorMessage != null)
             Text(
@@ -292,8 +294,10 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         const dividerWidth = 6.0;
         final availableWidth = totalWidth - dividerWidth;
         setState(() {
-          _splitRatio =
-              (_splitRatio + details.delta.dx / availableWidth).clamp(0.2, 0.8);
+          _splitRatio = (_splitRatio + details.delta.dx / availableWidth).clamp(
+            0.2,
+            0.8,
+          );
         });
       },
       onHorizontalDragEnd: (_) => setState(() => _isDragging = false),

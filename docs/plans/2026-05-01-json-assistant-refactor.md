@@ -1,59 +1,97 @@
 # JSON助手功能重构计划 - 类似utools
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已调整方向并完成实现（2026-05-07）**
+>
+> 原计划的树形视图方案已调整为**左右分栏代码编辑器**方案，更贴近实际使用场景。
+> 以下为最终实现记录。
 
-**Goal:** 重构JSON格式化工具，实现类似utools的JSON助手功能，支持树形视图展开收起
+**Goal:** 重构JSON格式化工具，提供更好的编辑和处理体验
 
-**Architecture:** 
-- 使用树形结构展示JSON数据，支持展开/收起节点
-- 实现语法高亮，不同类型数据用不同颜色显示
-- 支持JSON路径显示、复制功能
-- 移除不需要的转Dart功能
+**Architecture:**
 
-**Tech Stack:** Flutter, shadcn_ui, dart:convert
+- 左右分栏布局（输入/输出），支持可拖拽分割面板
+- 使用 `re_editor` 代码编辑器提供 JSON 语法高亮和行号
+- 实时 JSON 验证（300ms 防抖）
+- 智能修复功能（多策略组合）
+- 移除不需要的转Dart/TypeScript功能
+
+**Tech Stack:** Flutter, shadcn_ui, dart:convert, re_editor, re_highlight
 
 ---
 
-## 功能需求分析
+## 实际完成的功能
 
-### utools JSON助手核心功能
+### ✅ 已完成
+
 1. ✅ JSON格式化/压缩
-2. ✅ 树形视图 - 可展开/收起
-3. ✅ 语法高亮 - 字符串(绿色)、数字(蓝色)、布尔(紫色)、null(灰色)
-4. ✅ 行号显示
-5. ✅ JSON路径显示 - 点击节点显示路径
-6. ✅ 复制功能 - 复制整个JSON或单个节点值
-7. ✅ JSON验证
-8. ✅ 错误提示
+2. ✅ 转义/反转义
+3. ✅ 智能修复（单引号替换、未引用键名补全、尾部逗号移除、括号补全、截断修复）
+4. ✅ 左右分栏代码编辑器（re_editor + re_highlight 语法高亮）
+5. ✅ 行号显示
+6. ✅ 可拖拽分割面板（20%~80% 比例调节）
+7. ✅ 实时 JSON 验证（300ms 防抖）
+8. ✅ 错误提示和状态栏
+9. ✅ 交换输入输出
+10. ✅ 复制输出到剪贴板
 
-### 不需要的功能
-- ❌ 转Dart Map
-- ❌ 转TypeScript接口
+### ❌ 已移除（不再需要）
+
+- ~~转Dart Map~~
+- ~~转TypeScript接口~~
+
+### ⏸️ 未实现（原计划但最终未采用）
+
+- ~~树形视图展开收起~~（改为代码编辑器方案）
+- ~~JSON路径显示/复制~~
+- ~~语法高亮组件（自定义实现）~~（改用 re_highlight 库）
 
 ---
 
-## 文件结构
+## 最终文件结构
 
 ```
 lib/features/json_formatter/
 ├── domain/
-│   └── json_formatter_service.dart      # JSON处理服务
-├── presentation/
-│   ├── json_formatter_page.dart          # 主页面
-│   ├── widgets/
-│   │   ├── json_tree_view.dart           # 树形视图组件
-│   │   ├── json_tree_node.dart           # 树节点组件
-│   │   ├── json_syntax_highlighter.dart  # 语法高亮
-│   │   └── json_toolbar.dart             # 工具栏
-│   └── models/
-│       └── json_node_model.dart          # JSON节点数据模型
+│   └── json_formatter_service.dart      # JSON处理服务（格式化、压缩、转义、智能修复）
+└── presentation/
+    ├── json_formatter_page.dart          # 主页面（分栏布局、状态管理）
+    └── widgets/
+        ├── json_code_editor.dart         # 代码编辑器组件（re_editor 封装）
+        └── json_toolbar.dart             # 工具栏组件
 ```
+
+---
+
+## 原始计划（仅供参考，已调整方向）
+
+<details>
+<summary>点击展开原始树形视图计划</summary>
+
+### 原始功能需求分析
+
+#### utools JSON助手核心功能
+
+1. ✅ JSON格式化/压缩
+2. ~~树形视图 - 可展开/收起~~ → 改为代码编辑器
+3. ~~JSON路径显示 - 点击节点显示路径~~ → 未实现
+4. ✅ 复制功能 - 复制整个JSON
+5. ✅ JSON验证
+6. ✅ 错误提示
+7. ✅ 智能修复（新增）
+
+#### 不需要的功能
+
+- ❌ 转Dart Map
+- ❌ 转TypeScript接口
+
+</details>
 
 ---
 
 ## Task 1: 创建JSON节点数据模型
 
 **Files:**
+
 - Create: `lib/features/json_formatter/presentation/models/json_node_model.dart`
 
 - [ ] **Step 1: 创建JSON节点模型**
@@ -88,7 +126,7 @@ class JsonNodeModel {
   final List<JsonNodeModel> children;
 
   bool get isExpandable => type == JsonNodeType.object || type == JsonNodeType.array;
-  
+
   String get displayValue {
     switch (type) {
       case JsonNodeType.string:
@@ -166,6 +204,7 @@ git commit -m "feat: add json node model for tree view"
 ## Task 2: 重构JsonFormatterService
 
 **Files:**
+
 - Modify: `lib/features/json_formatter/domain/json_formatter_service.dart`
 
 - [ ] **Step 1: 简化服务，移除不需要的方法**
@@ -254,6 +293,7 @@ git commit -m "refactor: simplify json formatter service, remove dart/ts convers
 ## Task 3: 实现语法高亮组件
 
 **Files:**
+
 - Create: `lib/features/json_formatter/presentation/widgets/json_syntax_highlighter.dart`
 
 - [ ] **Step 1: 创建语法高亮组件**
@@ -280,7 +320,7 @@ class JsonSyntaxHighlighter extends StatelessWidget {
 
   TextSpan _buildTextSpan(BuildContext context) {
     final defaultStyle = style ?? const TextStyle(fontSize: 13);
-    
+
     return TextSpan(
       children: _parseJson(text, defaultStyle),
     );
@@ -382,7 +422,7 @@ class JsonSyntaxHighlighter extends StatelessWidget {
       final word = buffer.toString();
       spans.add(TextSpan(
         text: word,
-        style: inString 
+        style: inString
             ? defaultStyle.copyWith(color: const Color(0xFF22C55E))
             : _getValueStyle(word, defaultStyle),
       ));
@@ -418,6 +458,7 @@ git commit -m "feat: add json syntax highlighter component"
 ## Task 4: 实现树节点组件
 
 **Files:**
+
 - Create: `lib/features/json_formatter/presentation/widgets/json_tree_node.dart`
 
 - [ ] **Step 1: 创建树节点组件**
@@ -460,7 +501,7 @@ class _JsonTreeNodeState extends State<JsonTreeNode> {
 
   Widget _buildNodeHeader() {
     final indent = widget.depth * 20.0;
-    
+
     return InkWell(
       onTap: () {
         if (widget.node.isExpandable) {
@@ -552,7 +593,7 @@ class _JsonTreeNodeState extends State<JsonTreeNode> {
   Widget _buildClosingBracket() {
     final indent = widget.depth * 20.0;
     final bracket = widget.node.type == JsonNodeType.object ? '}' : ']';
-    
+
     return Container(
       padding: EdgeInsets.only(left: indent, top: 2, bottom: 2),
       child: Text(
@@ -580,6 +621,7 @@ git commit -m "feat: add json tree node component"
 ## Task 5: 实现树形视图组件
 
 **Files:**
+
 - Create: `lib/features/json_formatter/presentation/widgets/json_tree_view.dart`
 
 - [ ] **Step 1: 创建树形视图组件**
@@ -655,8 +697,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
   }
 
   void _handleCopy(JsonNodeModel node) {
-    final text = node.isExpandable 
-        ? node.displayValue 
+    final text = node.isExpandable
+        ? node.displayValue
         : node.value.toString();
     Clipboard.setData(ClipboardData(text: text));
     _showToast('已复制: $text');
@@ -757,6 +799,7 @@ git commit -m "feat: add json tree view component"
 ## Task 6: 实现工具栏组件
 
 **Files:**
+
 - Create: `lib/features/json_formatter/presentation/widgets/json_toolbar.dart`
 
 - [ ] **Step 1: 创建工具栏组件**
@@ -827,7 +870,7 @@ class JsonToolbar extends StatelessWidget {
 
   Widget _buildOperationButton(String label, JsonOperation operation, IconData icon) {
     final isSelected = selectedOperation == operation;
-    
+
     return ShadButton.ghost(
       size: ShadButtonSize.sm,
       onPressed: () => onOperationChanged(operation),
@@ -897,6 +940,7 @@ git commit -m "feat: add json toolbar component"
 ## Task 7: 重构主页面
 
 **Files:**
+
 - Modify: `lib/features/json_formatter/presentation/json_formatter_page.dart`
 
 - [ ] **Step 1: 重构主页面**
@@ -922,7 +966,7 @@ class JsonFormatterPage extends StatefulWidget {
 class _JsonFormatterPageState extends State<JsonFormatterPage> {
   final JsonFormatterService _service = JsonFormatterService();
   final TextEditingController _inputController = TextEditingController();
-  
+
   String _outputText = '';
   String _currentPath = '';
   JsonOperation _selectedOperation = JsonOperation.format;

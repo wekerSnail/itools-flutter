@@ -38,7 +38,7 @@ class ToolRegistry {
     ToolDescriptor(
       id: 'json_formatter',
       title: 'JSON 格式化',
-      description: '格式化、压缩、转义JSON数据',
+      description: '格式化、压缩、转义及智能修复JSON数据',
       icon: Icons.data_object,
       route: AppRoutes.jsonFormatter,
       builder: (_) => const JsonFormatterPage(),
