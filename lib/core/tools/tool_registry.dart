@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../router/app_routes.dart';
-import '../../features/backup_restore/presentation/backup_restore_page.dart';
 import '../../features/folder_mapping/presentation/folder_mapping_page.dart';
 import '../../features/json_formatter/presentation/json_formatter_page.dart';
 import '../../features/scheduler/presentation/scheduler_page.dart';
@@ -32,16 +31,6 @@ class ToolRegistry {
       builder: (_) => const FolderMappingPage(),
       windowSize: const Size(900, 650),
       minWindowSize: const Size(700, 500),
-    ),
-    ToolDescriptor(
-      id: 'backup_restore',
-      title: '备份还原',
-      description: '导出当前数据或导入历史备份',
-      icon: Icons.restore_page_outlined,
-      route: AppRoutes.backupRestore,
-      builder: (_) => const BackupRestorePage(),
-      windowSize: const Size(700, 500),
-      minWindowSize: const Size(600, 400),
     ),
     ToolDescriptor(
       id: 'json_formatter',
