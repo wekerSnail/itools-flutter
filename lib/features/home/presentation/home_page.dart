@@ -4,6 +4,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/system/window_manager_service.dart';
 import '../../../core/tools/tool_descriptor.dart';
 import '../../../core/tools/tool_registry.dart';
+import '../../../features/settings/data/theme_service.dart';
+import '../../../features/settings/domain/app_theme_style.dart';
 import '../../../features/settings/presentation/settings_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -13,9 +15,12 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final tools = ToolRegistry.tools;
     final shad = ShadTheme.of(context);
+    final style = ThemeService.instance.currentStyle.value;
 
     return Scaffold(
-      backgroundColor: shad.colorScheme.background,
+      backgroundColor: style == AppThemeStyle.modern
+          ? const Color(0xFFF0F4FF)
+          : shad.colorScheme.background,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
         child: Container(
@@ -61,8 +66,8 @@ class HomePage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
               childAspectRatio: 0.85,
             ),
             itemCount: tools.length,
@@ -101,6 +106,8 @@ class _ToolCardState extends State<_ToolCard> {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
+    final style = ThemeService.instance.currentStyle.value;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -108,27 +115,31 @@ class _ToolCardState extends State<_ToolCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: _hovered ? shad.colorScheme.accent : shad.colorScheme.card,
             border: Border.all(
               color: _hovered ? shad.colorScheme.ring : shad.colorScheme.border,
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(
+              style == AppThemeStyle.luxury ? 16 : 12,
+            ),
           ),
           padding: const EdgeInsets.all(14),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(
+                    style == AppThemeStyle.luxury ? 12 : 10,
+                  ),
                 ),
                 child: Icon(
                   widget.tool.icon,
-                  size: 20,
+                  size: 22,
                   color: shad.colorScheme.secondaryForeground,
                 ),
               ),

@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/widgets/page_header.dart';
 import 'autostart_settings_page.dart';
 import 'backup_settings_page.dart';
+import 'theme_settings_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -14,6 +15,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final List<_SettingsMenuItem> _menuItems = [
+    _SettingsMenuItem(
+      icon: LucideIcons.sunMoon,
+      title: '主题设置',
+      description: '选择亮色、暗色或跟随系统主题',
+      pageBuilder: () => const ThemeSettingsPage(),
+    ),
     _SettingsMenuItem(
       icon: LucideIcons.database,
       title: '备份还原',

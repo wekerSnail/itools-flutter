@@ -5,44 +5,68 @@ import 'core/router/app_navigation.dart';
 import 'core/router/app_router.dart';
 import 'core/router/app_routes.dart';
 import 'core/tools/tool_registry.dart';
+import 'features/settings/data/theme_service.dart';
+import 'features/settings/domain/app_theme_style.dart';
+import 'features/settings/domain/theme_mode.dart';
 
-class ToolboxApp extends StatelessWidget {
+class ToolboxApp extends StatefulWidget {
   const ToolboxApp({super.key, this.toolId});
 
   final String? toolId;
 
   @override
+  State<ToolboxApp> createState() => _ToolboxAppState();
+}
+
+class _ToolboxAppState extends State<ToolboxApp> {
+  @override
+  void initState() {
+    super.initState();
+    ThemeService.instance.initialize();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = ShadThemeData(
-      brightness: Brightness.light,
-      colorScheme: const ShadZincColorScheme.light(),
-    );
-    final darkTheme = ShadThemeData(
-      brightness: Brightness.dark,
-      colorScheme: const ShadZincColorScheme.dark(),
-    );
+    final service = ThemeService.instance;
 
-    if (toolId != null) {
-      final tool = ToolRegistry.findById(toolId!);
-      if (tool != null) {
-        return ShadApp(
-          title: tool.title,
-          debugShowCheckedModeBanner: false,
-          theme: theme,
-          darkTheme: darkTheme,
-          home: tool.builder(context),
+    return ValueListenableBuilder<AppThemeStyle>(
+      valueListenable: service.currentStyle,
+      builder: (context, style, _) {
+        return ValueListenableBuilder<AppThemeMode>(
+          valueListenable: service.currentMode,
+          builder: (context, mode, _) {
+            final brightness = _resolveBrightness(mode);
+            final themeData = service.getThemeData(style, brightness);
+
+            return ShadApp(
+              title: widget.toolId != null
+                  ? (ToolRegistry.findById(widget.toolId!)?.title ?? '工具集')
+                  : 'Windows 工具集',
+              debugShowCheckedModeBanner: false,
+              theme: themeData,
+              themeMode: mode.toFlutterThemeMode(),
+              home: widget.toolId != null
+                  ? ToolRegistry.findById(widget.toolId!)?.builder(context)
+                  : null,
+              navigatorKey: widget.toolId == null ? appNavigatorKey : null,
+              onGenerateRoute:
+                  widget.toolId == null ? AppRouter.onGenerateRoute : null,
+              initialRoute: widget.toolId == null ? AppRoutes.home : null,
+            );
+          },
         );
-      }
-    }
-
-    return ShadApp(
-      title: 'Windows 工具集',
-      debugShowCheckedModeBanner: false,
-      theme: theme,
-      darkTheme: darkTheme,
-      navigatorKey: appNavigatorKey,
-      onGenerateRoute: AppRouter.onGenerateRoute,
-      initialRoute: AppRoutes.home,
+      },
     );
+  }
+
+  Brightness _resolveBrightness(AppThemeMode mode) {
+    switch (mode) {
+      case AppThemeMode.light:
+        return Brightness.light;
+      case AppThemeMode.dark:
+        return Brightness.dark;
+      case AppThemeMode.system:
+        return WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    }
   }
 }
