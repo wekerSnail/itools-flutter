@@ -3,16 +3,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/data/file_store.dart';
 import '../domain/scheduled_task.dart';
 
 class TaskRunner {
   TaskRunner._();
 
   static final TaskRunner instance = TaskRunner._();
-  static const String _logsKey = 'scheduler.logs.v1';
+  static const String _logsPath = 'scheduler/logs.json';
   static const Duration _logRetentionDuration = Duration(days: 5);
+  final _store = FileStore();
 
   final ValueNotifier<List<String>> logs = ValueNotifier<List<String>>(
     <String>[],
@@ -282,9 +283,8 @@ ${task.script}
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_logsKey);
-    if (raw == null || raw.isEmpty) {
+    final raw = await _store.readJson(_logsPath);
+    if (raw.isEmpty) {
       _logsLoaded = true;
       return;
     }
@@ -323,11 +323,10 @@ ${task.script}
   }
 
   Future<void> _saveLogs() async {
-    final prefs = await SharedPreferences.getInstance();
     final payload = jsonEncode(
       _logEntries.map((e) => e.toJson()).toList(growable: false),
     );
-    await prefs.setString(_logsKey, payload);
+    await _store.writeJson(_logsPath, payload);
   }
 }
 
