@@ -57,6 +57,7 @@ class WindowManagerService {
     _openWindowIds[tool.id] = controller.windowId;
     debugPrint('[WindowManager] Opened window for ${tool.id}: ${controller.windowId}');
 
+    await Future.delayed(const Duration(milliseconds: 150));
     await controller.show();
   }
 

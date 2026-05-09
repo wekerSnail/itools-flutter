@@ -29,12 +29,15 @@ Future<void> main(List<String> args) async {
       title: title,
     );
 
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.waitUntilReadyToShow(windowOptions);
+    await windowManager.setAlignment(Alignment.center);
+    runApp(ToolboxApp(toolId: toolId));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       await windowManager.show();
       await windowManager.focus();
     });
 
-    runApp(ToolboxApp(toolId: toolId));
     return;
   }
 
