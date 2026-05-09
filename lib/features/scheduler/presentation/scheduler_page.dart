@@ -129,7 +129,6 @@ class _SchedulerPageState extends State<SchedulerPage> {
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: '定时任务',
-        showBack: true,
         actions: [
           ShadButton.ghost(
             size: ShadButtonSize.sm,

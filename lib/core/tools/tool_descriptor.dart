@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 class ToolDescriptor {
@@ -8,6 +10,8 @@ class ToolDescriptor {
     required this.icon,
     required this.route,
     required this.builder,
+    this.windowSize = const Size(900, 650),
+    this.minWindowSize = const Size(700, 500),
   });
 
   final String id;
@@ -16,4 +20,6 @@ class ToolDescriptor {
   final IconData icon;
   final String route;
   final WidgetBuilder builder;
+  final Size windowSize;
+  final Size minWindowSize;
 }

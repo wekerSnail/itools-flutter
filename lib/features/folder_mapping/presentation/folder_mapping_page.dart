@@ -663,7 +663,6 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: '文件夹快捷方式',
-        showBack: true,
         actions: [
           ShadButton.outline(
             size: ShadButtonSize.sm,

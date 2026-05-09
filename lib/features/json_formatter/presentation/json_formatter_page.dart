@@ -184,7 +184,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       appBar: const PageHeader(
         title: 'JSON 格式化',
         subtitle: '格式化、压缩、转义及智能修复',
-        showBack: true,
       ),
       body: Column(
         children: [

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../router/app_routes.dart';
@@ -18,6 +20,8 @@ class ToolRegistry {
       icon: Icons.schedule,
       route: AppRoutes.scheduler,
       builder: (_) => const SchedulerPage(),
+      windowSize: const Size(950, 700),
+      minWindowSize: const Size(800, 550),
     ),
     ToolDescriptor(
       id: 'folder_mapping',
@@ -26,6 +30,8 @@ class ToolRegistry {
       icon: Icons.folder_copy_outlined,
       route: AppRoutes.folderMapping,
       builder: (_) => const FolderMappingPage(),
+      windowSize: const Size(900, 650),
+      minWindowSize: const Size(700, 500),
     ),
     ToolDescriptor(
       id: 'backup_restore',
@@ -34,6 +40,8 @@ class ToolRegistry {
       icon: Icons.restore_page_outlined,
       route: AppRoutes.backupRestore,
       builder: (_) => const BackupRestorePage(),
+      windowSize: const Size(700, 500),
+      minWindowSize: const Size(600, 400),
     ),
     ToolDescriptor(
       id: 'json_formatter',
@@ -42,6 +50,12 @@ class ToolRegistry {
       icon: Icons.data_object,
       route: AppRoutes.jsonFormatter,
       builder: (_) => const JsonFormatterPage(),
+      windowSize: const Size(1000, 700),
+      minWindowSize: const Size(800, 550),
     ),
   ];
+
+  static ToolDescriptor? findById(String id) {
+    return tools.where((t) => t.id == id).firstOrNull;
+  }
 }

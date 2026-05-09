@@ -126,7 +126,6 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
       appBar: const PageHeader(
         title: '备份还原',
         subtitle: '导出当前数据，或导入历史备份进行迁移恢复',
-        showBack: true,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),

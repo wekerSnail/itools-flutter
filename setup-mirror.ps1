@@ -1,9 +1,8 @@
 # Flutter 国内镜像源配置脚本
-# 这个脚本设置环境变量以使用国内加速镜像
+# 使用 Flutter 中国社区 (CFUG) 官方镜像，与 Google 官方同步最及时
 
-# 默认使用清华镜像，兼顾速度与稳定性
-$env:PUB_HOSTED_URL = "https://mirrors.tuna.tsinghua.edu.cn/dart-pub"
-$env:FLUTTER_STORAGE_BASE_URL = "https://mirrors.tuna.tsinghua.edu.cn/flutter"
+$env:PUB_HOSTED_URL = "https://pub.flutter-io.cn"
+$env:FLUTTER_STORAGE_BASE_URL = "https://storage.flutter-io.cn"
 
 # 如遇到镜像异常，可临时切回官方源
 # Remove-Item Env:PUB_HOSTED_URL -ErrorAction SilentlyContinue
