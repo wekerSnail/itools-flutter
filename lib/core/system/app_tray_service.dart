@@ -6,9 +6,6 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../router/app_navigation.dart';
-import '../router/app_routes.dart';
-
 class AppTrayService with TrayListener, WindowListener {
   AppTrayService._();
 
@@ -309,7 +306,6 @@ class AppTrayService with TrayListener, WindowListener {
       Menu(
         items: [
           MenuItem(key: 'show', label: '打开主界面'),
-          MenuItem(key: 'backup_restore', label: '备份还原'),
           MenuItem.separator(),
           MenuItem(
             key: 'startup',
@@ -325,20 +321,6 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> _showMainWindow() async {
     await windowManager.show();
     await windowManager.focus();
-  }
-
-  Future<void> _openRoute(String routeName) async {
-    await _showMainWindow();
-
-    final navigator = appNavigatorKey.currentState;
-    if (navigator == null) {
-      return;
-    }
-
-    navigator.popUntil((route) => route.isFirst);
-    if (routeName != AppRoutes.home) {
-      navigator.pushNamed(routeName);
-    }
   }
 
   Future<void> _toggleStartup() async {
@@ -401,9 +383,6 @@ class AppTrayService with TrayListener, WindowListener {
       switch (menuItem.key) {
         case 'show':
           await _showMainWindow();
-          break;
-        case 'backup_restore':
-          await _openRoute(AppRoutes.backupRestore);
           break;
         case 'startup':
           await _toggleStartup();

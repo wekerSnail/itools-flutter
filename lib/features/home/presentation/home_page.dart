@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/system/window_manager_service.dart';
 import '../../../core/tools/tool_descriptor.dart';
 import '../../../core/tools/tool_registry.dart';
-import '../../../core/system/window_manager_service.dart';
+import '../../../features/settings/presentation/settings_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -15,6 +16,44 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: shad.colorScheme.background,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(64),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: shad.colorScheme.background,
+            border: Border(
+              bottom: BorderSide(color: shad.colorScheme.border),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Text(
+                'Windows 工具集',
+                style: shad.textTheme.h4,
+              ),
+              const Spacer(),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: () => _openSettings(context),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.settings,
+                      size: 16,
+                      color: shad.colorScheme.foreground,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text('设置'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
@@ -33,6 +72,14 @@ class HomePage extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _openSettings(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SettingsPage(),
       ),
     );
   }

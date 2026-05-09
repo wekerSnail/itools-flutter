@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_routes.dart';
 import '../../features/home/presentation/home_page.dart';
+import '../../features/settings/presentation/settings_page.dart';
 import '../tools/tool_registry.dart';
 
 class AppRouter {
@@ -10,6 +11,10 @@ class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     if (settings.name == AppRoutes.home) {
       return MaterialPageRoute<void>(builder: (_) => const HomePage());
+    }
+
+    if (settings.name == AppRoutes.settings) {
+      return MaterialPageRoute<void>(builder: (_) => const SettingsPage());
     }
 
     final tool = ToolRegistry.tools
