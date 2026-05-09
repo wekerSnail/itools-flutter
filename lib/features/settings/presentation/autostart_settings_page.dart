@@ -50,7 +50,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
       if (value) {
         await AppTrayService.instance.fixLaunchAtStartup();
       } else {
-        await AppTrayService.instance.fixLaunchAtStartup();
+        await AppTrayService.instance.disableLaunchAtStartup();
       }
       
       await _loadStatus();

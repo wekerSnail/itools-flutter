@@ -209,6 +209,19 @@ class AppTrayService with TrayListener, WindowListener {
     }
   }
 
+  Future<void> disableLaunchAtStartup() async {
+    try {
+      debugPrint('[Tray] Disabling launch at startup...');
+      await launchAtStartup.disable();
+      _launchAtStartupEnabled = false;
+      await _refreshContextMenu();
+      debugPrint('[Tray] Launch at startup disabled');
+    } catch (e) {
+      debugPrint('[Tray] Failed to disable launch at startup: $e');
+      rethrow;
+    }
+  }
+
   Future<void> _setupTray() async {
     try {
       debugPrint('[Tray._setupTray] Starting...');
