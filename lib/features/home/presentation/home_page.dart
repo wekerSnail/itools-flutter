@@ -47,24 +47,11 @@ class HomePage extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(
-                  Spacing.lg,
-                  Spacing.lg,
-                  Spacing.lg,
-                  Spacing.md,
-                ),
-                child: PageSectionHeader(
-                  title: '常用工具',
-                  subtitle: '统一的工具卡片语言，让首页看起来更像一个成熟的桌面工作台。',
-                  icon: Icons.dashboard_customize_outlined,
-                ),
-              ),
               Expanded(
                 child: GridView.builder(
                   padding: const EdgeInsets.fromLTRB(
                     Spacing.lg,
-                    0,
+                    Spacing.lg,
                     Spacing.lg,
                     Spacing.lg,
                   ),

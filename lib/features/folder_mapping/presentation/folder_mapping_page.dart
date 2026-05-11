@@ -5,7 +5,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../../core/animations/animation_builders.dart';
 import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
@@ -55,6 +54,37 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
 
   void _showToast(String message) {
     ShadToaster.of(context).show(ShadToast(description: Text(message)));
+  }
+
+  Future<bool> _showConfirmDialog({
+    required String title,
+    required String content,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final shad = ShadTheme.of(context);
+        return AlertDialog(
+          backgroundColor: shad.colorScheme.background,
+          title: Text(title),
+          content: Text(content),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                '确定删除',
+                style: TextStyle(color: shad.colorScheme.destructive),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
   }
 
   Future<void> _createOrEditCollection({FolderCollection? original}) async {
@@ -167,6 +197,12 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
   }
 
   Future<void> _removeCollection(FolderCollection collection) async {
+    final confirmed = await _showConfirmDialog(
+      title: '确认删除集合',
+      content: '确定要删除集合"${collection.name}"吗？此操作不可撤销。',
+    );
+    if (!confirmed) return;
+
     setState(() {
       _collections.removeWhere((e) => e.id == collection.id);
       if (_selectedCollection?.id == collection.id) {
@@ -335,6 +371,13 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
   Future<void> _removeShortcut(FolderShortcut shortcut) async {
     final collection = _selectedCollection;
     if (collection == null) return;
+
+    final confirmed = await _showConfirmDialog(
+      title: '确认删除快捷方式',
+      content: '确定要删除快捷方式"${shortcut.name}"吗？此操作不可撤销。',
+    );
+    if (!confirmed) return;
+
     setState(() {
       final cIndex = _collections.indexWhere((e) => e.id == collection.id);
       if (cIndex < 0) return;
@@ -397,6 +440,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     return Container(
       width: 280,
       decoration: BoxDecoration(
+        color: shad.colorScheme.background,
         border: Border(right: BorderSide(color: shad.colorScheme.border)),
       ),
       child: Column(
@@ -447,106 +491,103 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                     itemBuilder: (_, index) {
                       final item = _collections[index];
                       final selected = _selectedCollection?.id == item.id;
-                      return StaggeredAnimationBuilder(
-                        index: index,
-                        child: Container(
-                          key: ValueKey<String>(item.id),
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: Spacing.xs,
-                            vertical: 2,
-                          ),
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedCollection = item),
-                            child: AnimatedContainer(
-                              duration: AnimationDuration.hoverEffect,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: Spacing.sm,
-                                vertical: Spacing.sm,
+                      return Container(
+                        key: ValueKey<String>(item.id),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: Spacing.xs,
+                          vertical: 2,
+                        ),
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedCollection = item),
+                          child: AnimatedContainer(
+                            duration: AnimationDuration.hoverEffect,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Spacing.sm,
+                              vertical: Spacing.sm,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? shad.colorScheme.accent
+                                  : shad.colorScheme.background,
+                              borderRadius: BorderRadius.circular(
+                                BorderRadiusTokens.sm,
                               ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? shad.colorScheme.accent
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(
-                                  BorderRadiusTokens.sm,
+                            ),
+                            child: Row(
+                              children: [
+                                ReorderableDragStartListener(
+                                  index: index,
+                                  child: Icon(
+                                    LucideIcons.gripVertical,
+                                    size: 15,
+                                    color: shad.colorScheme.mutedForeground,
+                                  ),
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  ReorderableDragStartListener(
-                                    index: index,
-                                    child: Icon(
-                                      LucideIcons.gripVertical,
-                                      size: 15,
-                                      color: shad.colorScheme.mutedForeground,
-                                    ),
-                                  ),
-                                  const SizedBox(width: Spacing.sm),
-                                  Icon(
-                                    LucideIcons.folder,
-                                    size: 16,
-                                    color: selected
-                                        ? shad.colorScheme.accentForeground
-                                        : shad.colorScheme.mutedForeground,
-                                  ),
-                                  const SizedBox(width: Spacing.sm),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: Typography.bodySmall.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color: selected
-                                                ? shad
-                                                      .colorScheme
-                                                      .accentForeground
-                                                : shad.colorScheme.foreground,
-                                          ),
+                                const SizedBox(width: Spacing.sm),
+                                Icon(
+                                  LucideIcons.folder,
+                                  size: 16,
+                                  color: selected
+                                      ? shad.colorScheme.accentForeground
+                                      : shad.colorScheme.mutedForeground,
+                                ),
+                                const SizedBox(width: Spacing.sm),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        style: Typography.bodySmall.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                          color: selected
+                                              ? shad
+                                                    .colorScheme
+                                                    .accentForeground
+                                              : shad.colorScheme.foreground,
                                         ),
-                                        Text(
-                                          '${item.items.length} 个快捷方式',
-                                          style: Typography.caption.copyWith(
-                                            color: shad
-                                                .colorScheme
-                                                .mutedForeground,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  PopupMenuButton<String>(
-                                    padding: EdgeInsets.zero,
-                                    onSelected: (value) async {
-                                      if (value == 'edit') {
-                                        await _createOrEditCollection(
-                                          original: item,
-                                        );
-                                      } else if (value == 'delete') {
-                                        await _removeCollection(item);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('编辑集合'),
                                       ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('删除集合'),
+                                      Text(
+                                        '${item.items.length} 个快捷方式',
+                                        style: Typography.caption.copyWith(
+                                          color: shad
+                                              .colorScheme
+                                              .mutedForeground,
+                                        ),
                                       ),
                                     ],
-                                    child: Icon(
-                                      LucideIcons.ellipsis,
-                                      size: 15,
-                                      color: shad.colorScheme.mutedForeground,
-                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                PopupMenuButton<String>(
+                                  padding: EdgeInsets.zero,
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _createOrEditCollection(
+                                        original: item,
+                                      );
+                                    } else if (value == 'delete') {
+                                      await _removeCollection(item);
+                                    }
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('编辑集合'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('删除集合'),
+                                    ),
+                                  ],
+                                  child: Icon(
+                                    LucideIcons.ellipsis,
+                                    size: 15,
+                                    color: shad.colorScheme.mutedForeground,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -705,20 +746,6 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
               ],
             ),
           ),
-          const SizedBox(width: Spacing.xs),
-          ShadButton(
-            size: ShadButtonSize.sm,
-            onPressed: _createOrEditShortcut,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.plus, size: 14),
-                SizedBox(width: Spacing.xs),
-                Text('新增快捷方式'),
-              ],
-            ),
-          ),
-          const SizedBox(width: Spacing.xs),
         ],
       ),
       body: Row(

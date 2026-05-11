@@ -6,7 +6,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
-import '../../../core/widgets/surface_cards.dart';
 import '../domain/json_formatter_service.dart';
 import 'widgets/json_code_editor.dart';
 import 'widgets/json_toolbar.dart';
@@ -187,19 +186,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       appBar: const PageHeader(title: 'JSON 格式化', subtitle: '格式化、压缩、转义及智能修复'),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
-              Spacing.cardPadding,
-              Spacing.md,
-              Spacing.cardPadding,
-              Spacing.sm,
-            ),
-            child: PageSectionHeader(
-              title: '编辑工作台',
-              subtitle: '输入、校验、格式化与输出放在同一工作台里，减少视觉噪音。',
-              icon: Icons.data_object,
-            ),
-          ),
           JsonToolbar(
             onOperation: _execute,
             onSmartRepair: _smartRepair,
@@ -207,6 +193,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
             onCopy: _copyOutput,
             onClear: _clear,
           ),
+          const SizedBox(height: Spacing.sm),
           _buildStatusBar(shad),
           Expanded(
             child: Padding(
