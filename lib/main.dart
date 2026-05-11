@@ -66,7 +66,7 @@ Future<void> main(List<String> args) async {
 
     debugPrint('[Main] Window is now visible, initializing tray...');
     try {
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
       await AppTrayService.instance.initialize();
       debugPrint('[Main] Tray service initialized successfully');
     } catch (e, st) {

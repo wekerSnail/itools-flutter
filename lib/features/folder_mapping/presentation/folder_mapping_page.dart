@@ -2,10 +2,13 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/animations/animation_builders.dart';
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../application/folder_opener.dart';
 import '../data/folder_mapping_store.dart';
 import '../domain/folder_mapping.dart';
@@ -66,12 +69,12 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
           return Dialog(
             backgroundColor: shad.colorScheme.background,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
             ),
             child: SizedBox(
               width: 480,
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(Spacing.lg),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,30 +86,31 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           size: 18,
                           color: shad.colorScheme.foreground,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: Spacing.sm),
                         Text(
                           original == null ? '新增集合' : '编辑集合',
-                          style: shad.textTheme.h4,
+                          style: Typography.h4.copyWith(
+                            color: shad.colorScheme.foreground,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: Spacing.md),
                     ShadInput(
                       controller: nameCtrl,
                       placeholder: const Text('集合名称'),
                       autofocus: true,
                     ),
                     if (errorMsg != null) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: Spacing.xs),
                       Text(
                         errorMsg!,
-                        style: TextStyle(
+                        style: Typography.caption.copyWith(
                           color: shad.colorScheme.destructive,
-                          fontSize: 12,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 20),
+                    const SizedBox(height: Spacing.cardPadding),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -114,7 +118,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           onPressed: () => Navigator.of(context).pop(),
                           child: const Text('取消'),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: Spacing.sm),
                         ShadButton(
                           onPressed: () {
                             final name = nameCtrl.text.trim();
@@ -199,12 +203,12 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
           return Dialog(
             backgroundColor: shad.colorScheme.background,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
             ),
             child: SizedBox(
               width: 520,
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(Spacing.lg),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,20 +220,22 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           size: 18,
                           color: shad.colorScheme.foreground,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: Spacing.sm),
                         Text(
                           original == null ? '新增快捷方式' : '编辑快捷方式',
-                          style: shad.textTheme.h4,
+                          style: Typography.h4.copyWith(
+                            color: shad.colorScheme.foreground,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: Spacing.md),
                     ShadInput(
                       controller: nameCtrl,
                       placeholder: const Text('快捷方式名称'),
                       autofocus: true,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: Spacing.sm),
                     Row(
                       children: [
                         Expanded(
@@ -238,7 +244,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                             placeholder: const Text('目标目录路径'),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: Spacing.sm),
                         ShadButton.outline(
                           size: ShadButtonSize.sm,
                           onPressed: pickTarget,
@@ -246,7 +252,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(LucideIcons.folderOpen, size: 14),
-                              SizedBox(width: 4),
+                              SizedBox(width: Spacing.xs),
                               Text('浏览'),
                             ],
                           ),
@@ -254,16 +260,15 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                       ],
                     ),
                     if (errorMsg != null) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: Spacing.xs),
                       Text(
                         errorMsg!,
-                        style: TextStyle(
+                        style: Typography.caption.copyWith(
                           color: shad.colorScheme.destructive,
-                          fontSize: 12,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 20),
+                    const SizedBox(height: Spacing.cardPadding),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -271,7 +276,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           onPressed: () => Navigator.of(context).pop(),
                           child: const Text('取消'),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: Spacing.sm),
                         ShadButton(
                           onPressed: () {
                             final name = nameCtrl.text.trim();
@@ -397,22 +402,19 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Text(
-                  '集合列表',
-                  style: shad.textTheme.small.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                ShadButton.ghost(
-                  size: ShadButtonSize.sm,
-                  onPressed: _createOrEditCollection,
-                  child: const Icon(LucideIcons.plus, size: 15),
-                ),
-              ],
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.sm,
+              vertical: Spacing.sm,
+            ),
+            child: PageSectionHeader(
+              title: '集合管理',
+              subtitle: '把目录集合集中管理，再在右侧维护每个集合下的快捷方式。',
+              icon: Icons.folder_copy_outlined,
+              trailing: ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: _createOrEditCollection,
+                child: const Icon(LucideIcons.plus, size: 15),
+              ),
             ),
           ),
           Divider(height: 1, color: shad.colorScheme.border),
@@ -427,115 +429,124 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           size: 32,
                           color: shad.colorScheme.mutedForeground,
                         ),
-                        const SizedBox(height: 8),
-                        Text('暂无集合', style: shad.textTheme.muted),
+                        const SizedBox(height: Spacing.sm),
+                        Text(
+                          '暂无集合',
+                          style: Typography.bodySmall.copyWith(
+                            color: shad.colorScheme.mutedForeground,
+                          ),
+                        ),
                       ],
                     ),
                   )
                 : ReorderableListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(vertical: Spacing.xs),
                     buildDefaultDragHandles: false,
                     itemCount: _collections.length,
                     onReorder: _reorderCollections,
                     itemBuilder: (_, index) {
                       final item = _collections[index];
                       final selected = _selectedCollection?.id == item.id;
-                      return Container(
-                        key: ValueKey<String>(item.id),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedCollection = item),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? shad.colorScheme.accent
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              children: [
-                                ReorderableDragStartListener(
-                                  index: index,
-                                  child: Icon(
-                                    LucideIcons.gripVertical,
-                                    size: 15,
-                                    color: shad.colorScheme.mutedForeground,
+                      return StaggeredAnimationBuilder(
+                        index: index,
+                        child: Container(
+                          key: ValueKey<String>(item.id),
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: Spacing.xs,
+                            vertical: 2,
+                          ),
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedCollection = item),
+                            child: AnimatedContainer(
+                              duration: AnimationDuration.hoverEffect,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Spacing.sm,
+                                vertical: Spacing.sm,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? shad.colorScheme.accent
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(
+                                  BorderRadiusTokens.sm,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  ReorderableDragStartListener(
+                                    index: index,
+                                    child: Icon(
+                                      LucideIcons.gripVertical,
+                                      size: 15,
+                                      color: shad.colorScheme.mutedForeground,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  LucideIcons.folder,
-                                  size: 16,
-                                  color: selected
-                                      ? shad.colorScheme.accentForeground
-                                      : shad.colorScheme.mutedForeground,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.name,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: selected
-                                              ? shad
-                                                    .colorScheme
-                                                    .accentForeground
-                                              : shad.colorScheme.foreground,
+                                  const SizedBox(width: Spacing.sm),
+                                  Icon(
+                                    LucideIcons.folder,
+                                    size: 16,
+                                    color: selected
+                                        ? shad.colorScheme.accentForeground
+                                        : shad.colorScheme.mutedForeground,
+                                  ),
+                                  const SizedBox(width: Spacing.sm),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: Typography.bodySmall.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: selected
+                                                ? shad
+                                                      .colorScheme
+                                                      .accentForeground
+                                                : shad.colorScheme.foreground,
+                                          ),
                                         ),
+                                        Text(
+                                          '${item.items.length} 个快捷方式',
+                                          style: Typography.caption.copyWith(
+                                            color: shad
+                                                .colorScheme
+                                                .mutedForeground,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (value) async {
+                                      if (value == 'edit') {
+                                        await _createOrEditCollection(
+                                          original: item,
+                                        );
+                                      } else if (value == 'delete') {
+                                        await _removeCollection(item);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('编辑集合'),
                                       ),
-                                      Text(
-                                        '${item.items.length} 个快捷方式',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color:
-                                              shad.colorScheme.mutedForeground,
-                                        ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('删除集合'),
                                       ),
                                     ],
-                                  ),
-                                ),
-                                PopupMenuButton<String>(
-                                  padding: EdgeInsets.zero,
-                                  onSelected: (value) async {
-                                    if (value == 'edit') {
-                                      await _createOrEditCollection(
-                                        original: item,
-                                      );
-                                    } else if (value == 'delete') {
-                                      await _removeCollection(item);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('编辑集合'),
+                                    child: Icon(
+                                      LucideIcons.ellipsis,
+                                      size: 15,
+                                      color: shad.colorScheme.mutedForeground,
                                     ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('删除集合'),
-                                    ),
-                                  ],
-                                  child: Icon(
-                                    LucideIcons.ellipsis,
-                                    size: 15,
-                                    color: shad.colorScheme.mutedForeground,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -562,8 +573,13 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                 size: 40,
                 color: shad.colorScheme.mutedForeground,
               ),
-              const SizedBox(height: 12),
-              Text('请先在左侧创建并选择一个集合', style: shad.textTheme.muted),
+              const SizedBox(height: Spacing.sm),
+              Text(
+                '请先在左侧创建并选择一个集合',
+                style: Typography.bodySmall.copyWith(
+                  color: shad.colorScheme.mutedForeground,
+                ),
+              ),
             ],
           ),
         ),
@@ -574,7 +590,10 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.md,
+              vertical: Spacing.sm,
+            ),
             child: Row(
               children: [
                 Icon(
@@ -582,19 +601,24 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                   size: 16,
                   color: shad.colorScheme.foreground,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: Spacing.sm),
                 Text(
                   collection.name,
-                  style: shad.textTheme.p.copyWith(fontWeight: FontWeight.w600),
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: Spacing.sm),
                 ShadBadge.secondary(child: Text('${collection.items.length}')),
                 const Spacer(),
                 Text(
                   '双击可打开，拖拽手柄可排序',
-                  style: shad.textTheme.muted.copyWith(fontSize: 11),
+                  style: Typography.caption.copyWith(
+                    color: shad.colorScheme.mutedForeground,
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: Spacing.md),
                 ShadButton(
                   size: ShadButtonSize.sm,
                   onPressed: _createOrEditShortcut,
@@ -602,7 +626,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(LucideIcons.plus, size: 14),
-                      SizedBox(width: 4),
+                      SizedBox(width: Spacing.xs),
                       Text('新增快捷方式'),
                     ],
                   ),
@@ -622,9 +646,14 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                           size: 36,
                           color: shad.colorScheme.mutedForeground,
                         ),
-                        const SizedBox(height: 12),
-                        Text('此集合暂无快捷方式', style: shad.textTheme.muted),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: Spacing.sm),
+                        Text(
+                          '此集合暂无快捷方式',
+                          style: Typography.bodySmall.copyWith(
+                            color: shad.colorScheme.mutedForeground,
+                          ),
+                        ),
+                        const SizedBox(height: Spacing.xs),
                         ShadButton.outline(
                           size: ShadButtonSize.sm,
                           onPressed: _createOrEditShortcut,
@@ -634,7 +663,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                     ),
                   )
                 : ReorderableListView.builder(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(Spacing.sm),
                     buildDefaultDragHandles: false,
                     itemCount: collection.items.length,
                     onReorder: _reorderShortcuts,
@@ -671,12 +700,12 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(LucideIcons.folderPlus, size: 14),
-                SizedBox(width: 4),
+                SizedBox(width: Spacing.xs),
                 Text('新增集合'),
               ],
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: Spacing.xs),
           ShadButton(
             size: ShadButtonSize.sm,
             onPressed: _createOrEditShortcut,
@@ -684,12 +713,12 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(LucideIcons.plus, size: 14),
-                SizedBox(width: 4),
+                SizedBox(width: Spacing.xs),
                 Text('新增快捷方式'),
               ],
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: Spacing.xs),
         ],
       ),
       body: Row(
@@ -730,110 +759,104 @@ class _ShortcutCardState extends State<_ShortcutCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onDoubleTap: widget.onOpen,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: _hovered ? shad.colorScheme.accent : shad.colorScheme.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _hovered ? shad.colorScheme.ring : shad.colorScheme.border,
-            ),
-          ),
-          child: Row(
-            children: [
-              ReorderableDragStartListener(
-                index: widget.index,
-                child: Icon(
-                  LucideIcons.gripVertical,
-                  size: 15,
-                  color: shad.colorScheme.mutedForeground,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(
-                  LucideIcons.link,
-                  size: 18,
-                  color: shad.colorScheme.secondaryForeground,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.item.name,
-                      style: shad.textTheme.p.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.item.targetPath,
-                      style: shad.textTheme.muted.copyWith(
-                        fontFamily: 'Consolas',
-                        fontSize: 11,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (_hovered) ...[
-                ShadButton.ghost(
-                  size: ShadButtonSize.sm,
-                  onPressed: widget.onOpen,
-                  child: const Icon(LucideIcons.folderOpen, size: 14),
-                ),
-                ShadButton.ghost(
-                  size: ShadButtonSize.sm,
-                  onPressed: widget.onEdit,
-                  child: const Icon(LucideIcons.pencil, size: 14),
-                ),
-                ShadButton.ghost(
-                  size: ShadButtonSize.sm,
-                  onPressed: widget.onDelete,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: Spacing.sm),
+          child: InteractiveSurfaceCard(
+            child: Row(
+              children: [
+                ReorderableDragStartListener(
+                  index: widget.index,
                   child: Icon(
-                    LucideIcons.trash2,
-                    size: 14,
-                    color: shad.colorScheme.destructive,
-                  ),
-                ),
-              ] else
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  onSelected: (value) {
-                    if (value == 'open') {
-                      widget.onOpen();
-                    } else if (value == 'edit') {
-                      widget.onEdit();
-                    } else if (value == 'delete') {
-                      widget.onDelete();
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'open', child: Text('打开目录')),
-                    PopupMenuItem(value: 'edit', child: Text('编辑快捷方式')),
-                    PopupMenuItem(value: 'delete', child: Text('删除快捷方式')),
-                  ],
-                  child: Icon(
-                    LucideIcons.ellipsis,
-                    size: 16,
+                    LucideIcons.gripVertical,
+                    size: 15,
                     color: shad.colorScheme.mutedForeground,
                   ),
                 ),
-            ],
+                const SizedBox(width: 10),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: shad.colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(BorderRadiusTokens.xs),
+                  ),
+                  child: Icon(
+                    LucideIcons.link,
+                    size: 18,
+                    color: shad.colorScheme.secondaryForeground,
+                  ),
+                ),
+                const SizedBox(width: Spacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.item.name,
+                        style: Typography.body.copyWith(
+                          color: shad.colorScheme.foreground,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.item.targetPath,
+                        style: Typography.caption.copyWith(
+                          color: shad.colorScheme.mutedForeground,
+                          fontFamily: 'Consolas',
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Spacing.sm),
+                if (_hovered) ...[
+                  ShadButton.ghost(
+                    size: ShadButtonSize.sm,
+                    onPressed: widget.onOpen,
+                    child: const Icon(LucideIcons.folderOpen, size: 14),
+                  ),
+                  ShadButton.ghost(
+                    size: ShadButtonSize.sm,
+                    onPressed: widget.onEdit,
+                    child: const Icon(LucideIcons.pencil, size: 14),
+                  ),
+                  ShadButton.ghost(
+                    size: ShadButtonSize.sm,
+                    onPressed: widget.onDelete,
+                    child: Icon(
+                      LucideIcons.trash2,
+                      size: 14,
+                      color: shad.colorScheme.destructive,
+                    ),
+                  ),
+                ] else
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    onSelected: (value) {
+                      if (value == 'open') {
+                        widget.onOpen();
+                      } else if (value == 'edit') {
+                        widget.onEdit();
+                      } else if (value == 'delete') {
+                        widget.onDelete();
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'open', child: Text('打开目录')),
+                      PopupMenuItem(value: 'edit', child: Text('编辑快捷方式')),
+                      PopupMenuItem(value: 'delete', child: Text('删除快捷方式')),
+                    ],
+                    child: Icon(
+                      LucideIcons.ellipsis,
+                      size: 16,
+                      color: shad.colorScheme.mutedForeground,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

@@ -160,11 +160,11 @@ class ScheduledTask {
     final variablesRaw = json['variables'];
 
     final parsedVariables = switch (variablesRaw) {
-      List<dynamic> list =>
+      final List<dynamic> list =>
         list
             .map((e) => TaskVariable.fromJson(e as Map<String, dynamic>))
             .toList(growable: false),
-      Map<String, dynamic> map =>
+      final Map<String, dynamic> map =>
         map.entries
             .map(
               (e) => TaskVariable(

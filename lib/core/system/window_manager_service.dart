@@ -48,16 +48,15 @@ class WindowManagerService {
     }
 
     final controller = await WindowController.create(
-      WindowConfiguration(
-        hiddenAtLaunch: true,
-        arguments: tool.id,
-      ),
+      WindowConfiguration(arguments: tool.id),
     );
 
     _openWindowIds[tool.id] = controller.windowId;
-    debugPrint('[WindowManager] Opened window for ${tool.id}: ${controller.windowId}');
+    debugPrint(
+      '[WindowManager] Opened window for ${tool.id}: ${controller.windowId}',
+    );
 
-    await Future.delayed(const Duration(milliseconds: 150));
+    await Future<void>.delayed(const Duration(milliseconds: 150));
     await controller.show();
   }
 

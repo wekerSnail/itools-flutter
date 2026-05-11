@@ -1,7 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/animations/animation_builders.dart';
+import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/loading_widgets.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../application/task_runner.dart';
 import '../data/scheduler_store.dart';
 import '../domain/scheduled_task.dart';
@@ -27,6 +31,12 @@ class _SchedulerPageState extends State<SchedulerPage> {
     TaskRunner.instance.start(tasksProvider: () => _tasks);
   }
 
+  @override
+  void dispose() {
+    TaskRunner.instance.stop();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final loaded = await _store.loadTasks();
     if (!mounted) return;
@@ -39,7 +49,10 @@ class _SchedulerPageState extends State<SchedulerPage> {
 
   Future<void> _openEditor({ScheduledTask? task}) async {
     final savedTask = await Navigator.of(context).push<ScheduledTask>(
-      MaterialPageRoute(builder: (_) => TaskEditorPage(initialTask: task)),
+      PageTransitionBuilder.buildPageTransition<ScheduledTask>(
+        context: context,
+        builder: (_) => TaskEditorPage(initialTask: task),
+      ),
     );
     if (savedTask == null || !mounted) return;
     final idx = _tasks.indexWhere((e) => e.id == savedTask.id);
@@ -132,19 +145,22 @@ class _SchedulerPageState extends State<SchedulerPage> {
         actions: [
           ShadButton.ghost(
             size: ShadButtonSize.sm,
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const TaskLogsPage())),
+            onPressed: () => Navigator.of(context).push(
+              PageTransitionBuilder.buildPageTransition<void>(
+                context: context,
+                builder: (_) => const TaskLogsPage(),
+              ),
+            ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(LucideIcons.fileText, size: 15),
-                SizedBox(width: 6),
+                SizedBox(width: Spacing.xs),
                 Text('运行日志'),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: Spacing.sm),
           ShadButton(
             size: ShadButtonSize.sm,
             onPressed: () => _openEditor(),
@@ -152,59 +168,68 @@ class _SchedulerPageState extends State<SchedulerPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(LucideIcons.plus, size: 15),
-                SizedBox(width: 6),
+                SizedBox(width: Spacing.xs),
                 Text('添加任务'),
               ],
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: Spacing.xs),
         ],
       ),
       body: _tasks.isEmpty
           ? _buildEmptyState(shad)
-          : ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: _tasks.length,
-              itemBuilder: (_, i) => _buildTaskCard(context, shad, _tasks[i]),
+          : ListView(
+              padding: const EdgeInsets.all(Spacing.lg),
+              children: [
+                const PageSectionHeader(
+                  title: '任务总览',
+                  subtitle: '把定时任务的状态、频率和操作入口放在一套统一的列表语言里。',
+                  icon: Icons.schedule,
+                ),
+                const SizedBox(height: Spacing.md),
+                ..._tasks.asMap().entries.map(
+                  (entry) => StaggeredAnimationBuilder(
+                    index: entry.key,
+                    child: _buildTaskCard(context, shad, entry.value),
+                  ),
+                ),
+              ],
             ),
     );
   }
 
   Widget _buildEmptyState(ShadThemeData shad) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: shad.colorScheme.secondary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              LucideIcons.calendarClock,
-              size: 36,
-              color: shad.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('暂无定时任务', style: shad.textTheme.large),
-          const SizedBox(height: 6),
-          Text('点击右上角"添加任务"开始创建', style: shad.textTheme.muted),
-          const SizedBox(height: 20),
-          ShadButton(
-            onPressed: () => _openEditor(),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.plus, size: 15),
-                SizedBox(width: 6),
-                Text('添加任务'),
-              ],
+    return ListView(
+      padding: const EdgeInsets.all(Spacing.lg),
+      children: [
+        const PageSectionHeader(
+          title: '任务总览',
+          subtitle: '从这里创建、管理和快速运行任务，空状态也保持统一的桌面工具层级。',
+          icon: Icons.schedule,
+        ),
+        const SizedBox(height: Spacing.md),
+        SurfaceCard(
+          child: SizedBox(
+            height: 320,
+            child: EmptyStateWidget(
+              icon: LucideIcons.calendarClock,
+              title: '暂无定时任务',
+              description: '点击右上角“添加任务”开始创建',
+              action: ShadButton(
+                onPressed: () => _openEditor(),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.plus, size: 15),
+                    SizedBox(width: Spacing.xs),
+                    Text('添加任务'),
+                  ],
+                ),
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -215,9 +240,9 @@ class _SchedulerPageState extends State<SchedulerPage> {
   ) {
     final isRunning = _runningTaskIds.contains(task.id);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: ShadCard(
-        padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(bottom: Spacing.sm),
+      child: InteractiveSurfaceCard(
+        expand: true,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -229,33 +254,34 @@ class _SchedulerPageState extends State<SchedulerPage> {
                     children: [
                       Text(
                         task.name,
-                        style: shad.textTheme.p.copyWith(
+                        style: Typography.label.copyWith(
+                          color: shad.colorScheme.foreground,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: Spacing.sm),
                       ShadBadge.secondary(
                         child: Text(_taskTypeLabel(task.type)),
                       ),
                       if (!task.enabled) ...[
-                        const SizedBox(width: 6),
-                        ShadBadge.outline(child: const Text('已停用')),
+                        const SizedBox(width: Spacing.xs),
+                        const ShadBadge.outline(child: Text('已停用')),
                       ],
                     ],
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: Spacing.xs),
                   Text(
                     task.type == ScheduledTaskType.jsScript
                         ? (task.script ?? '').split('\n').first
                         : task.command,
-                    style: shad.textTheme.muted.copyWith(
+                    style: Typography.caption.copyWith(
+                      color: shad.colorScheme.mutedForeground,
                       fontFamily: 'Consolas',
-                      fontSize: 12,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: Spacing.xs),
                   Row(
                     children: [
                       Icon(
@@ -263,18 +289,20 @@ class _SchedulerPageState extends State<SchedulerPage> {
                         size: 12,
                         color: shad.colorScheme.mutedForeground,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: Spacing.xs),
                       Text(
                         '${_formatDateTime(task.startAt)} · '
                         '每 ${task.intervalValue} ${_scheduleUnitLabel(task.intervalUnit)}',
-                        style: shad.textTheme.muted.copyWith(fontSize: 12),
+                        style: Typography.caption.copyWith(
+                          color: shad.colorScheme.mutedForeground,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: Spacing.md),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -293,7 +321,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
                   value: task.enabled,
                   onChanged: (v) => _toggleTask(task, v),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: Spacing.xs),
                 ShadButton.ghost(
                   size: ShadButtonSize.sm,
                   onPressed: () => _openEditor(task: task),

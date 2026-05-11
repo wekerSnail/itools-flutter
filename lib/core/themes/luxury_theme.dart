@@ -6,11 +6,9 @@ class LuxuryTheme {
 
   static ShadThemeData light() {
     return ShadThemeData(
-      brightness: Brightness.light,
       colorScheme: const ShadZincColorScheme.light(
         background: Color(0xFFFAF8F5),
         foreground: Color(0xFF2C2C2C),
-        card: Color(0xFFFFFFFF),
         cardForeground: Color(0xFF2C2C2C),
         primary: Color(0xFF8B7355),
         primaryForeground: Color(0xFFFFFFFF),
@@ -31,7 +29,6 @@ class LuxuryTheme {
 
   static ShadThemeData dark() {
     return ShadThemeData(
-      brightness: Brightness.dark,
       colorScheme: const ShadZincColorScheme.dark(
         background: Color(0xFF1A1814),
         foreground: Color(0xFFE8E0D8),

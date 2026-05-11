@@ -72,6 +72,10 @@ Each feature follows: `domain/` (models), `data/` (persistence), `application/` 
 - Target needs VC++ Redistributable 2022+
 - `win32` package used for registry and system calls
 
+## MCP
+
+- When you need to search docs or reference library APIs, use `context7` tools.
+
 ## Docs
 
 - `docs/tray/README.md` — tray diagnostics

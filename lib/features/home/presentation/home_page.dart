@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/animations/animation_builders.dart';
+import '../../../core/design_tokens/index.dart';
 import '../../../core/system/window_manager_service.dart';
 import '../../../core/tools/tool_descriptor.dart';
 import '../../../core/tools/tool_registry.dart';
-import '../../../features/settings/data/theme_service.dart';
-import '../../../features/settings/domain/app_theme_style.dart';
+import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../../../features/settings/presentation/settings_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -15,66 +17,76 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final tools = ToolRegistry.tools;
     final shad = ShadTheme.of(context);
-    final style = ThemeService.instance.currentStyle.value;
 
     return Scaffold(
-      backgroundColor: style == AppThemeStyle.modern
-          ? const Color(0xFFF0F4FF)
-          : shad.colorScheme.background,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: shad.colorScheme.background,
-            border: Border(
-              bottom: BorderSide(color: shad.colorScheme.border),
+      backgroundColor: shad.colorScheme.background,
+      appBar: PageHeader(
+        title: 'Windows 工具集',
+        subtitle: '选择下方工具开始使用',
+        actions: [
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: () => _openSettings(context),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.settings,
+                  size: 18,
+                  color: shad.colorScheme.foreground,
+                ),
+                const SizedBox(width: Spacing.sm),
+                const Text('设置'),
+              ],
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              Text(
-                'Windows 工具集',
-                style: shad.textTheme.h4,
-              ),
-              const Spacer(),
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: () => _openSettings(context),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      LucideIcons.settings,
-                      size: 16,
-                      color: shad.colorScheme.foreground,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text('设置'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.85,
-            ),
-            itemCount: tools.length,
-            itemBuilder: (_, i) => _ToolCard(
-              tool: tools[i],
-              onTap: () => WindowManagerService.instance.openToolWindow(tools[i]),
-            ),
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  Spacing.lg,
+                  Spacing.lg,
+                  Spacing.lg,
+                  Spacing.md,
+                ),
+                child: PageSectionHeader(
+                  title: '常用工具',
+                  subtitle: '统一的工具卡片语言，让首页看起来更像一个成熟的桌面工作台。',
+                  icon: Icons.dashboard_customize_outlined,
+                ),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                    Spacing.lg,
+                    0,
+                    Spacing.lg,
+                    Spacing.lg,
+                  ),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: Spacing.lg,
+                    crossAxisSpacing: Spacing.lg,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: tools.length,
+                  itemBuilder: (_, i) => StaggeredAnimationBuilder(
+                    index: i,
+                    child: _ToolCard(
+                      tool: tools[i],
+                      onTap: () => WindowManagerService.instance.openToolWindow(
+                        tools[i],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -83,85 +95,63 @@ class HomePage extends StatelessWidget {
 
   void _openSettings(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      PageTransitionBuilder.buildPageTransition<void>(
+        context: context,
         builder: (_) => const SettingsPage(),
       ),
     );
   }
 }
 
-class _ToolCard extends StatefulWidget {
+class _ToolCard extends StatelessWidget {
   const _ToolCard({required this.tool, required this.onTap});
 
   final ToolDescriptor tool;
   final VoidCallback onTap;
 
   @override
-  State<_ToolCard> createState() => _ToolCardState();
-}
-
-class _ToolCardState extends State<_ToolCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    final style = ThemeService.instance.currentStyle.value;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: _hovered ? shad.colorScheme.accent : shad.colorScheme.card,
-            border: Border.all(
-              color: _hovered ? shad.colorScheme.ring : shad.colorScheme.border,
+    return InteractiveSurfaceCard(
+      onTap: onTap,
+      expand: true,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(Spacing.md),
+            decoration: BoxDecoration(
+              color: shad.colorScheme.secondary.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.lg),
             ),
-            borderRadius: BorderRadius.circular(
-              style == AppThemeStyle.luxury ? 16 : 12,
+            child: Icon(
+              tool.icon,
+              size: 28,
+              color: shad.colorScheme.secondaryForeground,
             ),
           ),
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(
-                    style == AppThemeStyle.luxury ? 12 : 10,
-                  ),
-                ),
-                child: Icon(
-                  widget.tool.icon,
-                  size: 22,
-                  color: shad.colorScheme.secondaryForeground,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.tool.title,
-                style: shad.textTheme.small.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.tool.description,
-                style: shad.textTheme.muted.copyWith(fontSize: 11),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          const SizedBox(height: Spacing.md),
+          Text(
+            tool.title,
+            style: Typography.label.copyWith(
+              color: shad.colorScheme.foreground,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            tool.description,
+            style: Typography.labelSmall.copyWith(
+              color: shad.colorScheme.mutedForeground,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

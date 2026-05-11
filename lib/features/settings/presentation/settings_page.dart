@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import 'autostart_settings_page.dart';
 import 'backup_settings_page.dart';
 import 'theme_settings_page.dart';
@@ -46,17 +48,30 @@ class _SettingsPageState extends State<SettingsPage> {
         subtitle: '管理应用配置和偏好',
         showBack: true,
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(20),
-        itemCount: _menuItems.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final item = _menuItems[index];
-          return _SettingsMenuCard(
-            item: item,
-            onTap: () => _navigateToSubPage(context, item),
-          );
-        },
+      body: ListView(
+        padding: const EdgeInsets.all(Spacing.lg),
+        children: [
+          const PageSectionHeader(
+            title: '偏好入口',
+            subtitle: '把常用配置集中在一个地方，入口表达更统一、层级也更清楚。',
+            icon: Icons.tune,
+          ),
+          const SizedBox(height: Spacing.md),
+          ..._menuItems.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _menuItems.length - 1 ? 0 : Spacing.md,
+              ),
+              child: _SettingsMenuCard(
+                item: item,
+                onTap: () => _navigateToSubPage(context, item),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -64,21 +79,21 @@ class _SettingsPageState extends State<SettingsPage> {
   void _navigateToSubPage(BuildContext context, _SettingsMenuItem item) {
     Navigator.of(context).push(
       PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => item.pageBuilder(),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            item.pageBuilder(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(1.0, 0.0);
           const end = Offset.zero;
           const curve = Curves.easeInOut;
 
-          final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          final tween = Tween(
+            begin: begin,
+            end: end,
+          ).chain(CurveTween(curve: curve));
           final offsetAnimation = animation.drive(tween);
 
-          return SlideTransition(
-            position: offsetAnimation,
-            child: child,
-          );
+          return SlideTransition(position: offsetAnimation, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -98,84 +113,61 @@ class _SettingsMenuItem {
   });
 }
 
-class _SettingsMenuCard extends StatefulWidget {
-  const _SettingsMenuCard({
-    required this.item,
-    required this.onTap,
-  });
+class _SettingsMenuCard extends StatelessWidget {
+  const _SettingsMenuCard({required this.item, required this.onTap});
 
   final _SettingsMenuItem item;
   final VoidCallback onTap;
 
   @override
-  State<_SettingsMenuCard> createState() => _SettingsMenuCardState();
-}
-
-class _SettingsMenuCardState extends State<_SettingsMenuCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          decoration: BoxDecoration(
-            color: _hovered ? shad.colorScheme.accent : shad.colorScheme.card,
-            border: Border.all(
-              color: _hovered ? shad.colorScheme.ring : shad.colorScheme.border,
+    return InteractiveSurfaceCard(
+      onTap: onTap,
+      expand: true,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: shad.colorScheme.secondary.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
             ),
-            borderRadius: BorderRadius.circular(10),
+            child: Icon(
+              item.icon,
+              size: 18,
+              color: shad.colorScheme.secondaryForeground,
+            ),
           ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(10),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
                 ),
-                child: Icon(
-                  widget.item.icon,
-                  size: 18,
-                  color: shad.colorScheme.secondaryForeground,
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  item.description,
+                  style: Typography.bodySmall.copyWith(
+                    color: shad.colorScheme.mutedForeground,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.item.title,
-                      style: shad.textTheme.large.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.item.description,
-                      style: shad.textTheme.muted,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                LucideIcons.chevronRight,
-                size: 16,
-                color: shad.colorScheme.mutedForeground,
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          Icon(
+            LucideIcons.chevronRight,
+            size: 16,
+            color: shad.colorScheme.mutedForeground,
+          ),
+        ],
       ),
     );
   }

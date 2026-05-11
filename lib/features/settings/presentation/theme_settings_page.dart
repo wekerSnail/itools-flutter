@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../data/theme_service.dart';
 import '../domain/app_theme_style.dart';
 import '../domain/theme_mode.dart';
@@ -27,77 +29,167 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
         subtitle: '选择视觉风格和色调',
         showBack: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            '视觉风格',
-            style: shad.textTheme.large.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '选择不同的视觉风格主题',
-            style: shad.textTheme.muted,
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<AppThemeStyle>(
-            valueListenable: _service.currentStyle,
-            builder: (context, currentStyle, _) {
-              return Column(
-                children: AppThemeStyle.values.map((style) {
-                  final isSelected = style == currentStyle;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _ThemeStyleCard(
-                      style: style,
-                      isSelected: isSelected,
-                      onTap: () => _service.setThemeStyle(style),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-          const SizedBox(height: 32),
-          Text(
-            '色调',
-            style: shad.textTheme.large.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '选择亮色、暗色或跟随系统',
-            style: shad.textTheme.muted,
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<AppThemeMode>(
+      body: ValueListenableBuilder<AppThemeStyle>(
+        valueListenable: _service.currentStyle,
+        builder: (context, currentStyle, _) {
+          return ValueListenableBuilder<AppThemeMode>(
             valueListenable: _service.currentMode,
-            builder: (context, currentMode, _) {
-              return Column(
-                children: AppThemeMode.values.map((mode) {
-                  final isSelected = mode == currentMode;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _ThemeModeCard(
-                      mode: mode,
-                      isSelected: isSelected,
-                      onTap: () => _service.setThemeMode(mode),
-                    ),
-                  );
-                }).toList(),
+            builder: (context, currentMode, __) {
+              return ListView(
+                padding: const EdgeInsets.all(Spacing.lg),
+                children: [
+                  _ThemeOverviewCard(
+                    currentStyle: currentStyle,
+                    currentMode: currentMode,
+                  ),
+                  const SizedBox(height: Spacing.xl),
+                  const PageSectionHeader(
+                    title: '主题风格库',
+                    subtitle: '统一的卡片语言配上各自不同的气质表达，选一个最对胃口的工作氛围。',
+                    icon: Icons.palette_outlined,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 960 ? 2 : 1;
+                      final totalSpacing = (columns - 1) * Spacing.md;
+                      final itemWidth =
+                          (constraints.maxWidth - totalSpacing) / columns;
+
+                      return Wrap(
+                        spacing: Spacing.md,
+                        runSpacing: Spacing.md,
+                        children: AppThemeStyle.values
+                            .map((style) {
+                              return SizedBox(
+                                width: itemWidth,
+                                child: _ThemeStyleCard(
+                                  style: style,
+                                  isSelected: style == currentStyle,
+                                  onTap: () => _service.setThemeStyle(style),
+                                ),
+                              );
+                            })
+                            .toList(growable: false),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: Spacing.xl),
+                  const PageSectionHeader(
+                    title: '色调模式',
+                    subtitle: '亮、暗、跟随系统三种模式统一采用同一套选择器语言，不再像三个走散的按钮。',
+                    icon: Icons.brightness_6_outlined,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 900 ? 3 : 1;
+                      final totalSpacing = (columns - 1) * Spacing.md;
+                      final itemWidth =
+                          (constraints.maxWidth - totalSpacing) / columns;
+
+                      return Wrap(
+                        spacing: Spacing.md,
+                        runSpacing: Spacing.md,
+                        children: AppThemeMode.values
+                            .map((mode) {
+                              return SizedBox(
+                                width: itemWidth,
+                                child: _ThemeModeCard(
+                                  mode: mode,
+                                  isSelected: mode == currentMode,
+                                  onTap: () => _service.setThemeMode(mode),
+                                ),
+                              );
+                            })
+                            .toList(growable: false),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: Spacing.xl),
+                  const PageSectionHeader(
+                    title: '实时预览',
+                    subtitle: '用一块轻量级样板区，直接感受当前主题在按钮、信息层级和表面层次上的状态。',
+                    icon: Icons.auto_awesome_outlined,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  _ThemeLivePreviewCard(
+                    currentStyle: currentStyle,
+                    currentMode: currentMode,
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  _ThemeBackupHintCard(),
+                ],
               );
             },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 }
 
-class _ThemeStyleCard extends StatefulWidget {
+class _ThemeOverviewCard extends StatelessWidget {
+  const _ThemeOverviewCard({
+    required this.currentStyle,
+    required this.currentMode,
+  });
+
+  final AppThemeStyle currentStyle;
+  final AppThemeMode currentMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final shad = ShadTheme.of(context);
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PageSectionHeader(
+            title: '当前配置',
+            subtitle: '先看现在是什么，再决定要不要把界面变得更稳、更亮或者更有个性。',
+            icon: Icons.check_circle_outline,
+          ),
+          const SizedBox(height: Spacing.md),
+          Wrap(
+            spacing: Spacing.sm,
+            runSpacing: Spacing.sm,
+            children: [
+              ShadBadge.secondary(child: Text('风格 · ${currentStyle.label}')),
+              ShadBadge.secondary(child: Text('模式 · ${currentMode.label}')),
+              ShadBadge.secondary(child: Text(_buildMoodLabel(currentStyle))),
+            ],
+          ),
+          const SizedBox(height: Spacing.md),
+          Text(
+            currentStyle.description,
+            style: Typography.body.copyWith(
+              color: shad.colorScheme.mutedForeground,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _buildMoodLabel(AppThemeStyle style) {
+    switch (style) {
+      case AppThemeStyle.modern:
+        return '专业清爽';
+      case AppThemeStyle.luxury:
+        return '克制优雅';
+      case AppThemeStyle.stellar:
+        return '锐利高能';
+      case AppThemeStyle.aurora:
+        return '自然高级';
+      case AppThemeStyle.sunset:
+        return '温暖沉稳';
+    }
+  }
+}
+
+class _ThemeStyleCard extends StatelessWidget {
   const _ThemeStyleCard({
     required this.style,
     required this.isSelected,
@@ -109,259 +201,162 @@ class _ThemeStyleCard extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ThemeStyleCard> createState() => _ThemeStyleCardState();
-}
-
-class _ThemeStyleCardState extends State<_ThemeStyleCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: shad.colorScheme.card,
-            border: Border.all(
-              color: widget.isSelected
-                  ? shad.colorScheme.primary
-                  : _hovered
-                      ? shad.colorScheme.ring
-                      : shad.colorScheme.border,
-              width: widget.isSelected ? 2 : 1,
+    return InteractiveSurfaceCard(
+      isSelected: isSelected,
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      expand: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ThemePalettePreview(style: style),
+          Padding(
+            padding: const EdgeInsets.all(Spacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(Spacing.sm),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? shad.colorScheme.primary.withValues(alpha: 0.12)
+                        : shad.colorScheme.secondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+                  ),
+                  child: Icon(
+                    style.icon,
+                    size: 18,
+                    color: isSelected
+                        ? shad.colorScheme.primary
+                        : shad.colorScheme.foreground,
+                  ),
+                ),
+                const SizedBox(width: Spacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        style.label,
+                        style: Typography.label.copyWith(
+                          color: shad.colorScheme.foreground,
+                        ),
+                      ),
+                      const SizedBox(height: Spacing.xs),
+                      Text(
+                        style.description,
+                        style: Typography.bodySmall.copyWith(
+                          color: shad.colorScheme.mutedForeground,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle,
+                    size: 18,
+                    color: shad.colorScheme.primary,
+                  ),
+              ],
             ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              if (_hovered || widget.isSelected)
-                BoxShadow(
-                  color: shad.colorScheme.primary.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildPreview(shad),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(
-                      widget.style.icon,
-                      size: 20,
-                      color: widget.isSelected
-                          ? shad.colorScheme.primary
-                          : shad.colorScheme.foreground,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.style.label,
-                            style: shad.textTheme.large.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.style.description,
-                            style: shad.textTheme.muted.copyWith(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (widget.isSelected)
-                      Icon(
-                        Icons.check_circle,
-                        size: 24,
-                        color: shad.colorScheme.primary,
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildPreview(ShadThemeData shad) {
-    switch (widget.style) {
-      case AppThemeStyle.modern:
-        return _buildModernPreview(shad);
-      case AppThemeStyle.luxury:
-        return _buildLuxuryPreview(shad);
-    }
-  }
+class _ThemePalettePreview extends StatelessWidget {
+  const _ThemePalettePreview({required this.style});
 
-  Widget _buildModernPreview(ShadThemeData shad) {
+  final AppThemeStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = style.previewColors;
+
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-      child: Container(
-        height: 120,
-        color: const Color(0xFFF0F4FF),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: const Text(
-                  '优雅蓝色',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 20,
-              right: 16,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(BorderRadiusTokens.lg - 1),
       ),
-    );
-  }
-
-  Widget _buildLuxuryPreview(ShadThemeData shad) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
       child: Container(
-        height: 120,
-        color: const Color(0xFFFAF8F5),
-        child: Stack(
+        height: 156,
+        padding: const EdgeInsets.all(Spacing.md),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colors.first.withValues(alpha: 0.18),
+              colors[1].withValues(alpha: 0.1),
+              colors.last.withValues(alpha: 0.22),
+            ],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFE5DDD5),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF8B7355).withOpacity(0.08),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  '米灰优雅',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF2C2C2C),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 20,
-              right: 16,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B7355).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFF8B7355).withOpacity(0.2),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 8,
+            Row(
+              children: colors
+                  .map(
+                    (color) => Container(
+                      width: 12,
+                      height: 12,
+                      margin: const EdgeInsets.only(right: Spacing.xs),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF8B7355).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.md,
+                vertical: Spacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 120,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: colors.first.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(
+                        BorderRadiusTokens.sm,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF8B7355).withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(4),
+                  const SizedBox(height: Spacing.sm),
+                  Container(
+                    width: double.infinity,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: colors[1].withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(
+                        BorderRadiusTokens.sm,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.xs),
+                  Container(
+                    width: 180,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: colors.last.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(
+                        BorderRadiusTokens.sm,
                       ),
                     ),
                   ),
@@ -375,7 +370,7 @@ class _ThemeStyleCardState extends State<_ThemeStyleCard> {
   }
 }
 
-class _ThemeModeCard extends StatefulWidget {
+class _ThemeModeCard extends StatelessWidget {
   const _ThemeModeCard({
     required this.mode,
     required this.isSelected,
@@ -387,84 +382,56 @@ class _ThemeModeCard extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ThemeModeCard> createState() => _ThemeModeCardState();
-}
-
-class _ThemeModeCardState extends State<_ThemeModeCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          decoration: BoxDecoration(
-            color: _hovered ? shad.colorScheme.accent : shad.colorScheme.card,
-            border: Border.all(
-              color: widget.isSelected
-                  ? shad.colorScheme.primary
-                  : _hovered
-                      ? shad.colorScheme.ring
-                      : shad.colorScheme.border,
-              width: widget.isSelected ? 2 : 1,
+    return InteractiveSurfaceCard(
+      isSelected: isSelected,
+      onTap: onTap,
+      expand: true,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? shad.colorScheme.primary.withValues(alpha: 0.14)
+                  : shad.colorScheme.secondary.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
             ),
-            borderRadius: BorderRadius.circular(10),
+            child: Icon(
+              mode.icon,
+              size: 18,
+              color: isSelected
+                  ? shad.colorScheme.primary
+                  : shad.colorScheme.foreground,
+            ),
           ),
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: widget.isSelected
-                      ? shad.colorScheme.primary
-                      : shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(8),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mode.label,
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
                 ),
-                child: Icon(
-                  widget.mode.icon,
-                  size: 18,
-                  color: widget.isSelected
-                      ? shad.colorScheme.primaryForeground
-                      : shad.colorScheme.secondaryForeground,
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  _getDescription(mode),
+                  style: Typography.bodySmall.copyWith(
+                    color: shad.colorScheme.mutedForeground,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.mode.label,
-                      style: shad.textTheme.p.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _getDescription(widget.mode),
-                      style: shad.textTheme.muted.copyWith(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              if (widget.isSelected)
-                Icon(
-                  Icons.check_circle,
-                  size: 20,
-                  color: shad.colorScheme.primary,
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
+          if (isSelected)
+            Icon(Icons.check_circle, size: 18, color: shad.colorScheme.primary),
+        ],
       ),
     );
   }
@@ -472,11 +439,192 @@ class _ThemeModeCardState extends State<_ThemeModeCard> {
   String _getDescription(AppThemeMode mode) {
     switch (mode) {
       case AppThemeMode.light:
-        return '始终使用亮色主题';
+        return '界面更轻盈，适合白天长时间工作';
       case AppThemeMode.dark:
-        return '始终使用暗色主题';
+        return '层级更聚焦，适合夜间或低光环境';
       case AppThemeMode.system:
-        return '自动匹配系统主题设置';
+        return '自动跟随系统切换，省心不折腾';
     }
+  }
+}
+
+class _ThemeLivePreviewCard extends StatelessWidget {
+  const _ThemeLivePreviewCard({
+    required this.currentStyle,
+    required this.currentMode,
+  });
+
+  final AppThemeStyle currentStyle;
+  final AppThemeMode currentMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final shad = ShadTheme.of(context);
+    final colors = currentStyle.previewColors;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '当前主题小样板',
+                      style: Typography.label.copyWith(
+                        color: shad.colorScheme.foreground,
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.xs),
+                    Text(
+                      '${currentStyle.label} · ${currentMode.label}',
+                      style: Typography.bodySmall.copyWith(
+                        color: shad.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Wrap(
+                spacing: Spacing.xs,
+                children: colors
+                    .map(
+                      (color) => Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.md),
+          Container(
+            padding: const EdgeInsets.all(Spacing.md),
+            decoration: BoxDecoration(
+              color: shad.colorScheme.secondary.withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.lg),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '工作台标题',
+                  style: Typography.h4.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  '这是对当前主题层级、表面和重点色的快速预览，不必切出页面也能判断是否顺眼。',
+                  style: Typography.bodySmall.copyWith(
+                    color: shad.colorScheme.mutedForeground,
+                  ),
+                ),
+                const SizedBox(height: Spacing.md),
+                Row(
+                  children: [
+                    ShadButton(onPressed: () {}, child: const Text('主操作')),
+                    const SizedBox(width: Spacing.sm),
+                    ShadButton.ghost(
+                      onPressed: () {},
+                      child: const Text('次操作'),
+                    ),
+                    const Spacer(),
+                    ShadBadge.secondary(child: Text(currentStyle.label)),
+                  ],
+                ),
+                const SizedBox(height: Spacing.md),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: shad.colorScheme.background,
+                    border: Border.all(color: shad.colorScheme.border),
+                    borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search,
+                        size: 16,
+                        color: shad.colorScheme.mutedForeground,
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: Text(
+                          '搜索设置项、任务或文件映射',
+                          style: Typography.bodySmall.copyWith(
+                            color: shad.colorScheme.mutedForeground,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeBackupHintCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final shad = ShadTheme.of(context);
+
+    return SurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(Spacing.sm),
+            decoration: BoxDecoration(
+              color: shad.colorScheme.secondary.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+            ),
+            child: Icon(
+              Icons.backup_outlined,
+              size: 18,
+              color: shad.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '主题设置会随备份一起保存',
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  '你在这里挑好的风格和色调，会被一起写入备份文件，换机或恢复时不用重新配一遍。',
+                  style: Typography.bodySmall.copyWith(
+                    color: shad.colorScheme.mutedForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

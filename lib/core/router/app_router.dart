@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'app_routes.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../tools/tool_registry.dart';
+import 'app_routes.dart';
 
 class AppRouter {
   AppRouter._();

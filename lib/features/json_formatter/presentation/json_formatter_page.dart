@@ -1,10 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../domain/json_formatter_service.dart';
 import 'widgets/json_code_editor.dart';
 import 'widgets/json_toolbar.dart';
@@ -37,8 +39,9 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
-    _inputController.removeListener(_onInputChanged);
-    _inputController.dispose();
+    _inputController
+      ..removeListener(_onInputChanged)
+      ..dispose();
     _outputController.dispose();
     super.dispose();
   }
@@ -181,12 +184,22 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
 
     return Scaffold(
       backgroundColor: shad.colorScheme.background,
-      appBar: const PageHeader(
-        title: 'JSON 格式化',
-        subtitle: '格式化、压缩、转义及智能修复',
-      ),
+      appBar: const PageHeader(title: 'JSON 格式化', subtitle: '格式化、压缩、转义及智能修复'),
       body: Column(
         children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              Spacing.cardPadding,
+              Spacing.md,
+              Spacing.cardPadding,
+              Spacing.sm,
+            ),
+            child: PageSectionHeader(
+              title: '编辑工作台',
+              subtitle: '输入、校验、格式化与输出放在同一工作台里，减少视觉噪音。',
+              icon: Icons.data_object,
+            ),
+          ),
           JsonToolbar(
             onOperation: _execute,
             onSmartRepair: _smartRepair,
@@ -197,7 +210,12 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           _buildStatusBar(shad),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.cardPadding,
+                Spacing.sm,
+                Spacing.cardPadding,
+                Spacing.cardPadding,
+              ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final totalWidth = constraints.maxWidth;
@@ -235,48 +253,62 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     final hasInput = input.isNotEmpty;
 
     return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: 36,
+      margin: const EdgeInsets.fromLTRB(
+        Spacing.cardPadding,
+        0,
+        Spacing.cardPadding,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
       decoration: BoxDecoration(
-        color: shad.colorScheme.muted.withValues(alpha: 0.3),
-        border: Border(bottom: BorderSide(color: shad.colorScheme.border)),
+        color: shad.colorScheme.secondary.withValues(alpha: 0.18),
+        border: Border.all(color: shad.colorScheme.border),
+        borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
       ),
       child: Row(
         children: [
           if (hasInput) ...[
             Icon(
               _isValid ? LucideIcons.check : LucideIcons.x,
-              size: 13,
+              size: 14,
               color: _isValid ? Colors.green : shad.colorScheme.destructive,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: Spacing.xs),
             Text(
               _isValid ? 'JSON 有效' : 'JSON 无效',
-              style: shad.textTheme.muted.copyWith(
-                fontSize: 12,
+              style: Typography.caption.copyWith(
                 color: _isValid ? Colors.green : shad.colorScheme.destructive,
               ),
             ),
           ] else
-            Text('等待输入', style: shad.textTheme.muted.copyWith(fontSize: 12)),
+            Text(
+              '等待输入',
+              style: Typography.caption.copyWith(
+                color: shad.colorScheme.mutedForeground,
+              ),
+            ),
           const Spacer(),
           if (_errorMessage != null)
             Text(
               _errorMessage!,
-              style: shad.textTheme.muted.copyWith(
-                fontSize: 12,
+              style: Typography.caption.copyWith(
                 color: shad.colorScheme.destructive,
               ),
             )
           else if (_statusMessage != null)
             Text(
               _statusMessage!,
-              style: shad.textTheme.muted.copyWith(fontSize: 12),
+              style: Typography.caption.copyWith(
+                color: shad.colorScheme.mutedForeground,
+              ),
             )
           else
             Text(
               '点击上方按钮执行操作',
-              style: shad.textTheme.muted.copyWith(fontSize: 12),
+              style: Typography.caption.copyWith(
+                color: shad.colorScheme.mutedForeground,
+              ),
             ),
         ],
       ),
@@ -289,7 +321,8 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       onHorizontalDragStart: (_) => setState(() => _isDragging = true),
       onHorizontalDragUpdate: (details) {
         final renderBox = context.findRenderObject() as RenderBox;
-        final totalWidth = renderBox.size.width - 40; // minus padding
+        final totalWidth =
+            renderBox.size.width - (Spacing.cardPadding * 2); // minus padding
         const dividerWidth = 6.0;
         final availableWidth = totalWidth - dividerWidth;
         setState(() {
@@ -328,7 +361,10 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.md,
+              vertical: Spacing.sm,
+            ),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: shad.colorScheme.border),
@@ -338,11 +374,16 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               children: [
                 Icon(
                   LucideIcons.braces,
-                  size: 14,
+                  size: 16,
                   color: shad.colorScheme.mutedForeground,
                 ),
-                const SizedBox(width: 6),
-                Text('输入', style: shad.textTheme.p),
+                const SizedBox(width: Spacing.xs),
+                Text(
+                  '输入',
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
               ],
             ),
           ),
@@ -352,11 +393,14 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               maxLines: null,
               expands: true,
               textAlignVertical: TextAlignVertical.top,
-              style: const TextStyle(fontFamily: 'Consolas', fontSize: 13),
+              style: Typography.bodySmall.copyWith(
+                fontFamily: 'Consolas',
+                color: shad.colorScheme.foreground,
+              ),
               decoration: const InputDecoration(
                 hintText: '在此粘贴 JSON 内容...',
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+                contentPadding: EdgeInsets.all(Spacing.md),
                 isDense: true,
               ),
             ),
@@ -373,7 +417,10 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.md,
+              vertical: Spacing.sm,
+            ),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: shad.colorScheme.border),
@@ -383,11 +430,16 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               children: [
                 Icon(
                   LucideIcons.fileText,
-                  size: 14,
+                  size: 16,
                   color: shad.colorScheme.mutedForeground,
                 ),
-                const SizedBox(width: 6),
-                Text('输出', style: shad.textTheme.p),
+                const SizedBox(width: Spacing.xs),
+                Text(
+                  '输出',
+                  style: Typography.label.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
               ],
             ),
           ),

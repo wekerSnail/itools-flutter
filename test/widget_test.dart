@@ -16,6 +16,8 @@ void main() {
 
     expect(find.text('Windows 工具集'), findsOneWidget);
     expect(find.text('选择下方工具开始使用'), findsOneWidget);
-    expect(find.text('备份还原'), findsOneWidget);
+    expect(find.text('定时任务'), findsOneWidget);
+    expect(find.text('文件夹映射'), findsOneWidget);
+    expect(find.text('JSON 格式化'), findsOneWidget);
   });
 }

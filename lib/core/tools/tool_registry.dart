@@ -1,11 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
-import '../router/app_routes.dart';
 import '../../features/folder_mapping/presentation/folder_mapping_page.dart';
 import '../../features/json_formatter/presentation/json_formatter_page.dart';
 import '../../features/scheduler/presentation/scheduler_page.dart';
+import '../router/app_routes.dart';
 import 'tool_descriptor.dart';
 
 class ToolRegistry {
@@ -29,8 +27,6 @@ class ToolRegistry {
       icon: Icons.folder_copy_outlined,
       route: AppRoutes.folderMapping,
       builder: (_) => const FolderMappingPage(),
-      windowSize: const Size(900, 650),
-      minWindowSize: const Size(700, 500),
     ),
     ToolDescriptor(
       id: 'json_formatter',

@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:code_text_field/code_text_field.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../domain/scheduled_task.dart';
 
 class TaskEditorPage extends StatefulWidget {
@@ -118,7 +120,8 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
       return jsonDecode(normalized);
     } catch (_) {
       throw const FormatException(
-          'object 类型格式无效。\n示例：{"a":1,"name":"demo"} 或 {a:1, name:"demo"}');
+        'object 类型格式无效。\n示例：{"a":1,"name":"demo"} 或 {a:1, name:"demo"}',
+      );
     }
   }
 
@@ -201,7 +204,12 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
 
     setState(() {
       _startAt = DateTime(
-          date.year, date.month, date.day, time.hour, time.minute);
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
@@ -213,8 +221,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
     );
 
     var type = original?.type ?? TaskVariableType.string;
-    var boolValue =
-        (original?.value is bool) ? original!.value as bool : false;
+    var boolValue = (original?.value is bool) ? original!.value as bool : false;
     String? validationMessage;
 
     final variable = await showDialog<TaskVariable>(
@@ -241,8 +248,9 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
           final shad = ShadTheme.of(context);
           return Dialog(
             backgroundColor: shad.colorScheme.background,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: SizedBox(
               width: 520,
               child: Padding(
@@ -251,8 +259,10 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(index == null ? '新增变量' : '编辑变量',
-                        style: shad.textTheme.h4),
+                    Text(
+                      index == null ? '新增变量' : '编辑变量',
+                      style: shad.textTheme.h4,
+                    ),
                     const SizedBox(height: 20),
                     ShadInput(
                       controller: nameCtrl,
@@ -274,9 +284,12 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                         }
                       },
                       options: TaskVariableType.values
-                          .map((v) => ShadOption(
+                          .map(
+                            (v) => ShadOption(
                               value: v,
-                              child: Text(_variableTypeLabel(v))))
+                              child: Text(_variableTypeLabel(v)),
+                            ),
+                          )
                           .toList(),
                     ),
                     const SizedBox(height: 12),
@@ -289,8 +302,10 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                                 setDialogState(() => boolValue = v),
                           ),
                           const SizedBox(width: 8),
-                          Text(boolValue ? 'true' : 'false',
-                              style: shad.textTheme.small),
+                          Text(
+                            boolValue ? 'true' : 'false',
+                            style: shad.textTheme.small,
+                          ),
                         ],
                       )
                     else
@@ -298,8 +313,6 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                           ? ShadTextarea(
                               controller: valueCtrl,
                               placeholder: const Text('变量值（JSON / JS对象）'),
-                              minHeight: 80,
-                              maxHeight: 200,
                             )
                           : ShadTextarea(
                               controller: valueCtrl,
@@ -317,8 +330,9 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                       Text(
                         validationMessage!,
                         style: TextStyle(
-                            color: shad.colorScheme.destructive,
-                            fontSize: 12),
+                          color: shad.colorScheme.destructive,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -335,19 +349,23 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                             final name = nameCtrl.text.trim();
                             if (name.isEmpty) {
                               setDialogState(
-                                  () => validationMessage = '变量名不能为空');
+                                () => validationMessage = '变量名不能为空',
+                              );
                               return;
                             }
                             try {
                               final value = parsedValue();
                               Navigator.of(context).pop(
-                                  TaskVariable(
-                                      name: name,
-                                      type: type,
-                                      value: value));
+                                TaskVariable(
+                                  name: name,
+                                  type: type,
+                                  value: value,
+                                ),
+                              );
                             } catch (e) {
                               setDialogState(
-                                  () => validationMessage = e.toString());
+                                () => validationMessage = e.toString(),
+                              );
                             }
                           },
                           child: const Text('保存'),
@@ -378,14 +396,19 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
 
   Widget _buildVariablesSection() {
     final shad = ShadTheme.of(context);
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('变量配置', style: shad.textTheme.p.copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                '变量配置',
+                style: Typography.label.copyWith(
+                  color: shad.colorScheme.foreground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               ShadButton.outline(
                 size: ShadButtonSize.sm,
@@ -406,42 +429,54 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
             '支持 string / number / boolean / object。\n'
             '• 命令任务：使用 {{变量名}} 进行替换\n'
             '• JS脚本：通过 vars.变量名 访问',
-            style: shad.textTheme.muted.copyWith(fontSize: 12),
+            style: Typography.bodySmall.copyWith(
+              color: shad.colorScheme.mutedForeground,
+            ),
           ),
           const SizedBox(height: 10),
           if (_variables.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text('暂无变量，点击"新增变量"创建。',
-                  style: shad.textTheme.muted),
+              child: Text(
+                '暂无变量，点击"新增变量"创建。',
+                style: Typography.bodySmall.copyWith(
+                  color: shad.colorScheme.mutedForeground,
+                ),
+              ),
             )
           else
             ...List.generate(_variables.length, (index) {
               final v = _variables[index];
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: shad.colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(6),
+                  color: shad.colorScheme.secondary.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(BorderRadiusTokens.sm),
                 ),
                 child: Row(
                   children: [
-                    ShadBadge.outline(
-                        child: Text(_variableTypeLabel(v.type))),
+                    ShadBadge.outline(child: Text(_variableTypeLabel(v.type))),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(v.name,
-                              style: shad.textTheme.small
-                                  .copyWith(fontWeight: FontWeight.w600)),
+                          Text(
+                            v.name,
+                            style: Typography.bodySmall.copyWith(
+                              color: shad.colorScheme.foreground,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           Text(
                             _variableDisplayValue(v),
-                            style: shad.textTheme.muted
-                                .copyWith(fontSize: 11),
+                            style: Typography.caption.copyWith(
+                              color: shad.colorScheme.mutedForeground,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -457,9 +492,11 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                       size: ShadButtonSize.sm,
                       onPressed: () =>
                           setState(() => _variables.removeAt(index)),
-                      child: Icon(LucideIcons.trash2,
-                          size: 14,
-                          color: shad.colorScheme.destructive),
+                      child: Icon(
+                        LucideIcons.trash2,
+                        size: 14,
+                        color: shad.colorScheme.destructive,
+                      ),
                     ),
                   ],
                 ),
@@ -472,26 +509,34 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
 
   Widget _buildCodeEditor() {
     final shad = ShadTheme.of(context);
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('JS 脚本编辑器',
-                  style: shad.textTheme.p
-                      .copyWith(fontWeight: FontWeight.w600)),
+              Text(
+                'JS 脚本编辑器',
+                style: Typography.label.copyWith(
+                  color: shad.colorScheme.foreground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
-              Icon(LucideIcons.gripHorizontal,
-                  size: 16, color: shad.colorScheme.mutedForeground),
+              Icon(
+                LucideIcons.gripHorizontal,
+                size: 16,
+                color: shad.colorScheme.mutedForeground,
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             '支持语法高亮。通过 vars 对象访问变量。\n'
             '示例：console.log(vars.myName); vars.count++;',
-            style: shad.textTheme.muted.copyWith(fontSize: 12),
+            style: Typography.bodySmall.copyWith(
+              color: shad.colorScheme.mutedForeground,
+            ),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -504,7 +549,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
               ),
               child: SingleChildScrollView(
                 child: CodeTheme(
-                  data: CodeThemeData(styles: atomOneDarkTheme),
+                  data: const CodeThemeData(styles: atomOneDarkTheme),
                   child: CodeField(
                     controller: _scriptCodeCtrl,
                     textStyle: const TextStyle(
@@ -523,8 +568,10 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
             child: GestureDetector(
               onVerticalDragUpdate: (d) {
                 setState(() {
-                  _codeEditorHeight =
-                      (_codeEditorHeight + d.delta.dy).clamp(100.0, 800.0);
+                  _codeEditorHeight = (_codeEditorHeight + d.delta.dy).clamp(
+                    100.0,
+                    800.0,
+                  );
                 });
               },
               child: Container(
@@ -552,11 +599,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
   }
 
   void _showToast(String message) {
-    ShadToaster.of(context).show(
-      ShadToast(
-        description: Text(message),
-      ),
-    );
+    ShadToaster.of(context).show(ShadToast(description: Text(message)));
   }
 
   void _saveTask() {
@@ -576,7 +619,8 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
     }
 
     final savedTask = ScheduledTask(
-      id: widget.initialTask?.id ??
+      id:
+          widget.initialTask?.id ??
           '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
       name: _nameCtrl.text.trim(),
       type: _taskType,
@@ -619,19 +663,24 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(Spacing.lg),
         children: [
-          ShadInput(
-            controller: _nameCtrl,
-            placeholder: const Text('任务名称'),
+          const PageSectionHeader(
+            title: '任务配置',
+            subtitle: '把任务名称、类型、变量和调度参数放进同一块配置工作区，编辑时不再东找西找。',
+            icon: Icons.edit_note,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
+          ShadInput(controller: _nameCtrl, placeholder: const Text('任务名称')),
+          const SizedBox(height: Spacing.md),
           ShadSelect<ScheduledTaskType>(
             key: ValueKey(_taskType),
             initialValue: _taskType,
             placeholder: const Text('任务类型'),
             selectedOptionBuilder: (_, v) => Text(
-              v == ScheduledTaskType.terminalCommand ? '终端命令任务' : 'JS脚本任务（Node.js）',
+              v == ScheduledTaskType.terminalCommand
+                  ? '终端命令任务'
+                  : 'JS脚本任务（Node.js）',
             ),
             onChanged: (v) {
               if (v != null) setState(() => _taskType = v);
@@ -647,18 +696,17 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           if (_taskType == ScheduledTaskType.terminalCommand)
             ShadTextarea(
               controller: _commandCtrl,
               placeholder: const Text('终端命令（支持 {{变量名}}）'),
-              minHeight: 80,
             )
           else
             _buildCodeEditor(),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           _buildVariablesSection(),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           ShadButton.outline(
             onPressed: _pickStartAt,
             child: Row(
@@ -670,7 +718,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           Row(
             children: [
               Expanded(
@@ -683,10 +731,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                     if (v != null) setState(() => _intervalValue = v);
                   },
                   options: List.generate(60, (i) => i + 1)
-                      .map((v) => ShadOption(
-                            value: v,
-                            child: Text('$v'),
-                          ))
+                      .map((v) => ShadOption(value: v, child: Text('$v')))
                       .toList(),
                 ),
               ),
@@ -696,22 +741,23 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                   key: ValueKey(_intervalUnit),
                   initialValue: _intervalUnit,
                   placeholder: const Text('单位'),
-                  selectedOptionBuilder: (_, v) =>
-                      Text(_scheduleUnitLabel(v)),
+                  selectedOptionBuilder: (_, v) => Text(_scheduleUnitLabel(v)),
                   onChanged: (v) {
                     if (v != null) setState(() => _intervalUnit = v);
                   },
                   options: ScheduleUnit.values
-                      .map((v) => ShadOption(
-                            value: v,
-                            child: Text(_scheduleUnitLabel(v)),
-                          ))
+                      .map(
+                        (v) => ShadOption(
+                          value: v,
+                          child: Text(_scheduleUnitLabel(v)),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: Spacing.sm),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -763,7 +809,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: Spacing.lg),
         ],
       ),
     );

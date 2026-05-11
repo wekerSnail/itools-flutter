@@ -42,15 +42,15 @@ class _ToolboxAppState extends State<ToolboxApp> {
               title: widget.toolId != null
                   ? (ToolRegistry.findById(widget.toolId!)?.title ?? '工具集')
                   : 'Windows 工具集',
-              debugShowCheckedModeBanner: false,
               theme: themeData,
               themeMode: mode.toFlutterThemeMode(),
               home: widget.toolId != null
                   ? ToolRegistry.findById(widget.toolId!)?.builder(context)
                   : null,
               navigatorKey: widget.toolId == null ? appNavigatorKey : null,
-              onGenerateRoute:
-                  widget.toolId == null ? AppRouter.onGenerateRoute : null,
+              onGenerateRoute: widget.toolId == null
+                  ? AppRouter.onGenerateRoute
+                  : null,
               initialRoute: widget.toolId == null ? AppRoutes.home : null,
             );
           },

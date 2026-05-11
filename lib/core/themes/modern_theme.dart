@@ -6,11 +6,9 @@ class ModernTheme {
 
   static ShadThemeData light() {
     return ShadThemeData(
-      brightness: Brightness.light,
       colorScheme: const ShadZincColorScheme.light(
         background: Color(0xFFF8F9FE),
         foreground: Color(0xFF1A1A2E),
-        card: Color(0xFFFFFFFF),
         cardForeground: Color(0xFF1A1A2E),
         primary: Color(0xFF6366F1),
         primaryForeground: Color(0xFFFFFFFF),
@@ -31,7 +29,6 @@ class ModernTheme {
 
   static ShadThemeData dark() {
     return ShadThemeData(
-      brightness: Brightness.dark,
       colorScheme: const ShadZincColorScheme.dark(
         background: Color(0xFF0F0F1A),
         foreground: Color(0xFFE2E8F0),

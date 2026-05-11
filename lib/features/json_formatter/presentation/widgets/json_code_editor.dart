@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/json.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class JsonCodeEditor extends StatefulWidget {
   const JsonCodeEditor({
@@ -42,8 +43,9 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
 
   @override
   void dispose() {
-    _controller.removeListener(_onTextChanged);
-    _controller.dispose();
+    _controller
+      ..removeListener(_onTextChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -58,7 +60,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final shad = ShadTheme.of(context);
 
     return CodeEditor(
       controller: _controller,
@@ -68,43 +70,46 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
         fontFamily: 'Consolas',
         fontHeight: 1.5,
         backgroundColor: Colors.transparent,
-        textColor: isDark ? const Color(0xFFABB2BF) : const Color(0xFF383A42),
+        textColor: shad.colorScheme.foreground,
         cursorColor: theme.colorScheme.primary,
         selectionColor: theme.colorScheme.primary.withValues(alpha: 0.2),
         cursorLineColor: theme.colorScheme.primary.withValues(alpha: 0.06),
         codeTheme: CodeHighlightTheme(
-          languages: {
-            'json': langJson.themeMode,
-          },
+          languages: {'json': langJson.themeMode},
           theme: atomOneDarkTheme,
         ),
       ),
       wordWrap: false,
-      indicatorBuilder: (context, editingController, chunkController, notifier) {
-        return Row(
-          children: [
-            DefaultCodeChunkIndicator(
-              width: 20,
-              controller: chunkController,
-              notifier: notifier,
-            ),
-            DefaultCodeLineNumber(
-              controller: editingController,
-              notifier: notifier,
-              textStyle: TextStyle(
-                fontSize: 12,
-                fontFamily: 'Consolas',
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-              ),
-              focusedTextStyle: TextStyle(
-                fontSize: 12,
-                fontFamily: 'Consolas',
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              ),
-            ),
-          ],
-        );
-      },
+      indicatorBuilder:
+          (context, editingController, chunkController, notifier) {
+            return Row(
+              children: [
+                DefaultCodeChunkIndicator(
+                  width: 20,
+                  controller: chunkController,
+                  notifier: notifier,
+                ),
+                DefaultCodeLineNumber(
+                  controller: editingController,
+                  notifier: notifier,
+                  textStyle: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Consolas',
+                    color: shad.colorScheme.mutedForeground.withValues(
+                      alpha: 0.55,
+                    ),
+                  ),
+                  focusedTextStyle: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Consolas',
+                    color: shad.colorScheme.mutedForeground.withValues(
+                      alpha: 0.85,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
       scrollbarBuilder: (context, child, details) {
         return Scrollbar(
           controller: details.controller,

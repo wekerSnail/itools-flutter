@@ -192,9 +192,10 @@ class JsonFormatterService {
           if (input[j] == '\\') j++;
           j++;
         }
-        buffer.write('"');
-        buffer.write(input.substring(i + 1, j));
-        buffer.write('"');
+        buffer
+          ..write('"')
+          ..write(input.substring(i + 1, j))
+          ..write('"');
         i = j;
         continue;
       }
@@ -239,9 +240,10 @@ class JsonFormatterService {
         }
         if (k < input.length && input[k] == ':') {
           // It's a key, quote it
-          buffer.write('"');
-          buffer.write(input.substring(i, j));
-          buffer.write('"');
+          buffer
+            ..write('"')
+            ..write(input.substring(i, j))
+            ..write('"');
           i = j - 1;
         } else {
           buffer.write(input.substring(i, j));

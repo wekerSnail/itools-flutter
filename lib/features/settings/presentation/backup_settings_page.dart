@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
+import '../../../core/widgets/surface_cards.dart';
 import '../../../features/backup_restore/data/app_backup_service.dart';
 
 class BackupSettingsPage extends StatefulWidget {
@@ -129,8 +131,14 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
         showBack: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(Spacing.lg),
         children: [
+          const PageSectionHeader(
+            title: '数据概览',
+            subtitle: '先确认当前有哪些数据会被纳入备份，再决定导出或导入。',
+            icon: Icons.inventory_2_outlined,
+          ),
+          const SizedBox(height: Spacing.md),
           _InfoCard(
             title: '当前数据概览',
             icon: LucideIcons.database,
@@ -140,10 +148,10 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('当前可备份数据项：${currentSummary.itemCount}'),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: Spacing.sm),
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: Spacing.sm,
+                        runSpacing: Spacing.sm,
                         children: currentSummary.keys.isEmpty
                             ? const <Widget>[Text('暂无可备份数据')]
                             : currentSummary.keys
@@ -156,7 +164,13 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
                     ],
                   ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: Spacing.xl),
+          const PageSectionHeader(
+            title: '操作中心',
+            subtitle: '把最常用的导出、导入操作集中放在一起，动作更明确，风险提示也更清楚。',
+            icon: Icons.swap_horiz,
+          ),
+          const SizedBox(height: Spacing.md),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -170,7 +184,7 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
                   onPressed: _handleExport,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: Spacing.md),
               Expanded(
                 child: _ActionCard(
                   title: '导入备份',
@@ -183,15 +197,16 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (_lastExportPath != null)
+          const SizedBox(height: Spacing.xl),
+          if (_lastExportPath != null) ...[
             _InfoCard(
               title: '最近一次导出',
               icon: LucideIcons.fileArchive,
               child: SelectableText(_lastExportPath!),
             ),
-          if (_lastExportPath != null) const SizedBox(height: 16),
-          if (_lastImportedSummary != null)
+            const SizedBox(height: Spacing.md),
+          ],
+          if (_lastImportedSummary != null) ...[
             _InfoCard(
               title: '最近一次导入',
               icon: LucideIcons.history,
@@ -201,22 +216,29 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
                   Text(
                     '备份时间：${_formatDateTime(_lastImportedSummary!.exportedAt)}',
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: Spacing.sm),
                   Text('恢复数据项：${_lastImportedSummary!.itemCount}'),
                 ],
               ),
             ),
-          if (_lastImportedSummary != null) const SizedBox(height: 16),
-          _InfoCard(
+            const SizedBox(height: Spacing.md),
+          ],
+          const PageSectionHeader(
+            title: '使用说明',
+            subtitle: '把关键风险和恢复预期提前说清楚，避免备份操作像开盲盒。',
+            icon: Icons.info_outline,
+          ),
+          const SizedBox(height: Spacing.md),
+          const _InfoCard(
             title: '说明',
             icon: LucideIcons.shieldCheck,
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('• 当前会备份应用受管的数据项，包括文件夹映射、定时任务和运行日志。'),
-                SizedBox(height: 6),
+                SizedBox(height: Spacing.xs),
                 Text('• 导入会覆盖这些数据项，因此建议先导出一次当前数据再执行导入。'),
-                SizedBox(height: 6),
+                SizedBox(height: Spacing.xs),
                 Text('• 导入完成后，重新打开对应功能页即可加载最新数据。'),
               ],
             ),
@@ -241,19 +263,24 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
+
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(icon, size: 16, color: shad.colorScheme.foreground),
-              const SizedBox(width: 8),
-              Text(title, style: shad.textTheme.large),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                title,
+                style: Typography.label.copyWith(
+                  color: shad.colorScheme.foreground,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.sm),
           child,
         ],
       ),
@@ -281,17 +308,19 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    return ShadCard(
-      padding: const EdgeInsets.all(16),
+
+    return InteractiveSurfaceCard(
+      onTap: enabled ? onPressed : null,
+      expand: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: shad.colorScheme.secondary,
-              borderRadius: BorderRadius.circular(10),
+              color: shad.colorScheme.secondary.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
             ),
             child: Icon(
               icon,
@@ -299,11 +328,21 @@ class _ActionCard extends StatelessWidget {
               color: shad.colorScheme.secondaryForeground,
             ),
           ),
-          const SizedBox(height: 14),
-          Text(title, style: shad.textTheme.large),
-          const SizedBox(height: 6),
-          Text(description, style: shad.textTheme.muted),
-          const SizedBox(height: 16),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            title,
+            style: Typography.label.copyWith(
+              color: shad.colorScheme.foreground,
+            ),
+          ),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            description,
+            style: Typography.bodySmall.copyWith(
+              color: shad.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: Spacing.md),
           SizedBox(
             width: double.infinity,
             child: ShadButton(
