@@ -6,7 +6,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/data/file_store.dart';
 import '../../../core/themes/luxury_theme.dart';
 import '../../../core/themes/modern_theme.dart';
-import '../../../core/themes/modern_themes.dart';
 import '../domain/app_theme_style.dart';
 import '../domain/theme_mode.dart';
 
@@ -79,12 +78,6 @@ class ThemeService {
         return isDark ? ModernTheme.dark() : ModernTheme.light();
       case AppThemeStyle.luxury:
         return isDark ? LuxuryTheme.dark() : LuxuryTheme.light();
-      case AppThemeStyle.stellar:
-        return isDark ? StellarTheme.darkTheme() : StellarTheme.lightTheme();
-      case AppThemeStyle.aurora:
-        return isDark ? AuroraTheme.darkTheme() : AuroraTheme.lightTheme();
-      case AppThemeStyle.sunset:
-        return isDark ? SunsetTheme.darkTheme() : SunsetTheme.lightTheme();
     }
   }
 }

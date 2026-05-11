@@ -179,12 +179,6 @@ class _ThemeOverviewCard extends StatelessWidget {
         return '专业清爽';
       case AppThemeStyle.luxury:
         return '克制优雅';
-      case AppThemeStyle.stellar:
-        return '锐利高能';
-      case AppThemeStyle.aurora:
-        return '自然高级';
-      case AppThemeStyle.sunset:
-        return '温暖沉稳';
     }
   }
 }
