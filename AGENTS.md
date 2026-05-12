@@ -31,7 +31,8 @@ lib/
     folder_mapping/  # folder shortcuts with collections
     json_formatter/  # JSON editor with re_editor
     backup_restore/  # export/import SharedPreferences data
-    settings/        # settings menu (backup, autostart)
+    settings/        # settings menu (backup, autostart, hotkey)
+    hotkey_settings/ # global hotkey configuration
 ```
 
 Each feature follows: `domain/` (models), `data/` (persistence), `application/` (logic), `presentation/` (UI).
@@ -48,12 +49,123 @@ Each feature follows: `domain/` (models), `data/` (persistence), `application/` 
 - **JSON editor**: `re_editor` package (`CodeLineEditingController`).
 - **JS editor**: `code_text_field` package (`CodeController` with `highlight/languages/javascript`).
 
-## Adding a new tool
+## UI Style Guide
+
+All settings pages must follow this consistent structure:
+
+### Page Structure
+
+```
+Scaffold (background: shad.colorScheme.background)
+  └── appBar: PageHeader (title, subtitle, showBack: true)
+  └── body: ListView (padding: Spacing.lg)
+        ├── PageSectionHeader (title, subtitle, icon)
+        ├── SizedBox(height: Spacing.md)
+        ├── [卡片内容...]
+        ├── SizedBox(height: Spacing.xl)      ← 段落之间用 xl(32px) 分隔
+        └── 重复以上模式...
+```
+
+### Spacing Constants
+
+| Constant | Value | Usage |
+|----------|-------|-------|
+| `Spacing.xs` | 4px | 标题与副标题间距 |
+| `Spacing.sm` | 8px | 图标与文字间距 |
+| `Spacing.md` | 16px | 卡片默认 padding、SectionHeader 与内容间距 |
+| `Spacing.lg` | 24px | 页面 ListView padding |
+| `Spacing.xl` | 32px | 功能段落之间的间距 |
+
+### Color Scheme
+
+All colors via `ShadTheme.of(context).colorScheme`:
+
+| Token | Usage |
+|-------|-------|
+| `background` | Scaffold 背景 |
+| `card` | SurfaceCard 背景 |
+| `foreground` | 主要文字（标题、标签） |
+| `mutedForeground` | 次要文字（描述、副标题） |
+| `primary` | 强调色（选中态、SectionHeader 图标） |
+| `secondary` | 图标容器默认背景 |
+
+### Card Components
+
+- **SurfaceCard**: 静态信息展示卡片
+- **InteractiveSurfaceCard**: 可交互卡片（onTap, isSelected）
+
+### Icon Container (44x44)
+
+```dart
+Container(
+  width: 44,
+  height: 44,
+  decoration: BoxDecoration(
+    color: shad.colorScheme.secondary.withValues(alpha: 0.45),
+    borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+  ),
+  child: Icon(icon, size: 18, color: shad.colorScheme.secondaryForeground),
+)
+```
+
+### Typography
+
+| Style | Usage |
+|-------|-------|
+| `Typography.h4` + `foreground` | PageHeader/SectionHeader 标题 |
+| `Typography.label` + `foreground` | 卡片标题 |
+| `Typography.bodySmall` + `mutedForeground` | 描述文字 |
+
+## Adding a New Tool
 
 1. Create `lib/features/{name}/` with domain/data/application/presentation layers
 2. Add `ToolDescriptor` to `lib/core/tools/tool_registry.dart`
 3. Add route constant to `lib/core/router/app_routes.dart`
 4. Register backup key in `lib/features/backup_restore/data/app_backup_service.dart` `managedKeys` if data should be backed up
+5. Register hotkey action in `main.dart` `_registerBuiltinHotkeyActions()`:
+```dart
+registry.register(
+  HotkeyActionDescriptor(
+    id: 'open_{name}',
+    title: '打开{功能名}',
+    description: '打开{功能名}页面',
+    icon: tool.icon,
+    onTrigger: () => WindowManagerService.instance.openToolWindow(tool),
+  ),
+);
+```
+
+## Adding a Settings Page
+
+1. Create `lib/features/settings/presentation/{name}_settings_page.dart`
+2. Add menu entry in `lib/features/settings/presentation/settings_page.dart`:
+```dart
+_SettingsMenuItem(
+  icon: LucideIcons.xxx,
+  title: '设置项标题',
+  description: '设置项描述',
+  pageBuilder: () => const XxxSettingsPage(),
+),
+```
+3. Follow the UI Style Guide for page structure
+4. If data needs backup, add to `managedFiles` in `app_backup_service.dart`
+
+## Adding a Global Hotkey Action
+
+Register in `main.dart` `_registerBuiltinHotkeyActions()`:
+```dart
+registry.register(
+  HotkeyActionDescriptor(
+    id: 'action_id',
+    title: '动作名称',
+    description: '动作描述',
+    icon: LucideIcons.xxx,
+    onTrigger: () {
+      // 触发逻辑
+    },
+  ),
+);
+```
 
 ## Lint rules (non-default, enforced)
 
