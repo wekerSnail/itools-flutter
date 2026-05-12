@@ -24,6 +24,7 @@ class AppBackupService {
     'scheduler/logs.json',
     'folder_mapping/collections.json',
     'settings/theme.json',
+    'settings/hotkeys.json',
   ];
 
   final _store = FileStore();

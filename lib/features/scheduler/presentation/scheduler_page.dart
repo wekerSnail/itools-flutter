@@ -6,8 +6,8 @@ import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/loading_widgets.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
+import '../application/scheduler_service.dart';
 import '../application/task_runner.dart';
-import '../data/scheduler_store.dart';
 import '../domain/scheduled_task.dart';
 import 'task_editor_page.dart';
 import 'task_logs_page.dart';
@@ -20,30 +20,15 @@ class SchedulerPage extends StatefulWidget {
 }
 
 class _SchedulerPageState extends State<SchedulerPage> {
-  final SchedulerStore _store = SchedulerStore();
-  final List<ScheduledTask> _tasks = <ScheduledTask>[];
   final Set<String> _runningTaskIds = <String>{};
 
   @override
   void initState() {
     super.initState();
-    _load();
-    TaskRunner.instance.start(tasksProvider: () => _tasks);
-  }
-
-  @override
-  void dispose() {
-    TaskRunner.instance.stop();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    final loaded = await _store.loadTasks();
-    if (!mounted) return;
-    setState(() {
-      _tasks
-        ..clear()
-        ..addAll(loaded);
+    SchedulerService.instance.reloadTasks().then((_) {
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
@@ -55,27 +40,35 @@ class _SchedulerPageState extends State<SchedulerPage> {
       ),
     );
     if (savedTask == null || !mounted) return;
-    final idx = _tasks.indexWhere((e) => e.id == savedTask.id);
-    setState(() {
-      if (idx >= 0) {
-        _tasks[idx] = savedTask;
-      } else {
-        _tasks.insert(0, savedTask);
-      }
-    });
-    await _store.saveTasks(_tasks);
+
+    final service = SchedulerService.instance;
+    if (task != null) {
+      service.updateTask(savedTask);
+    } else {
+      service.addTask(savedTask);
+    }
+    await service.saveTasks();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _toggleTask(ScheduledTask task, bool enabled) async {
-    final idx = _tasks.indexWhere((e) => e.id == task.id);
-    if (idx < 0) return;
-    setState(() => _tasks[idx] = task.copyWith(enabled: enabled));
-    await _store.saveTasks(_tasks);
+    final service = SchedulerService.instance
+      ..updateTask(task.copyWith(enabled: enabled));
+    await service.saveTasks();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _deleteTask(ScheduledTask task) async {
-    setState(() => _tasks.removeWhere((e) => e.id == task.id));
-    await _store.saveTasks(_tasks);
+    final service = SchedulerService.instance
+      ..removeTask(task.id);
+    await service.saveTasks();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _showToast(String message) {
@@ -138,6 +131,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
+    final tasks = SchedulerService.instance.tasks;
     return Scaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
@@ -176,7 +170,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
           const SizedBox(width: Spacing.xs),
         ],
       ),
-      body: _tasks.isEmpty
+      body: tasks.isEmpty
           ? _buildEmptyState(shad)
           : ListView(
               padding: const EdgeInsets.all(Spacing.lg),
@@ -187,7 +181,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
                   icon: Icons.schedule,
                 ),
                 const SizedBox(height: Spacing.md),
-                ..._tasks.asMap().entries.map(
+                ...tasks.asMap().entries.map(
                   (entry) => StaggeredAnimationBuilder(
                     index: entry.key,
                     child: _buildTaskCard(context, shad, entry.value),

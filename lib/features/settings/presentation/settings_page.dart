@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
+import '../../hotkey_settings/presentation/hotkey_settings_page.dart';
 import 'autostart_settings_page.dart';
 import 'backup_settings_page.dart';
 import 'theme_settings_page.dart';
@@ -22,6 +23,12 @@ class _SettingsPageState extends State<SettingsPage> {
       title: '主题设置',
       description: '选择亮色、暗色或跟随系统主题',
       pageBuilder: () => const ThemeSettingsPage(),
+    ),
+    _SettingsMenuItem(
+      icon: LucideIcons.keyboard,
+      title: '热键设置',
+      description: '配置全局快捷键，快速触发常用操作',
+      pageBuilder: () => const HotkeySettingsPage(),
     ),
     _SettingsMenuItem(
       icon: LucideIcons.database,
