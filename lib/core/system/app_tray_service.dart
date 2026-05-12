@@ -138,12 +138,30 @@ class AppTrayService with TrayListener, WindowListener {
 
       await launchAtStartup.disable();
       await _setupLaunchAtStartup();
+      await launchAtStartup.enable();
 
       final isEnabled = await checkLaunchAtStartupStatus();
       debugPrint('[Tray] Launch at startup fix result: $isEnabled');
       return isEnabled;
     } catch (e) {
       debugPrint('[Tray] Failed to fix launch at startup: $e');
+      return false;
+    }
+  }
+
+  Future<bool> enableLaunchAtStartup() async {
+    try {
+      debugPrint('[Tray] Enabling launch at startup...');
+      await _setupLaunchAtStartup();
+      await launchAtStartup.enable();
+
+      final isEnabled = await checkLaunchAtStartupStatus();
+      debugPrint('[Tray] Launch at startup enabled result: $isEnabled');
+      _launchAtStartupEnabled = isEnabled;
+      await _refreshContextMenu();
+      return isEnabled;
+    } catch (e) {
+      debugPrint('[Tray] Failed to enable launch at startup: $e');
       return false;
     }
   }

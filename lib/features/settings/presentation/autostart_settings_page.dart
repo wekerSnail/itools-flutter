@@ -49,16 +49,22 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
   Future<void> _toggleAutostart(bool value) async {
     setState(() => _busy = true);
     try {
+      bool result;
       if (value) {
-        await AppTrayService.instance.fixLaunchAtStartup();
+        result = await AppTrayService.instance.enableLaunchAtStartup();
       } else {
         await AppTrayService.instance.disableLaunchAtStartup();
+        result = true;
       }
 
       await _loadStatus();
 
       if (mounted) {
-        _showToast(value ? '已开启开机自启' : '已关闭开机自启');
+        if (value) {
+          _showToast(result ? '已开启开机自启' : '开启失败，请尝试修复');
+        } else {
+          _showToast('已关闭开机自启');
+        }
       }
     } catch (e) {
       if (mounted) {
