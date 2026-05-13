@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 enum AppThemeStyle {
   modern,
@@ -19,15 +19,6 @@ enum AppThemeStyle {
         return '优雅蓝色背景，清新现代风格';
       case AppThemeStyle.luxury:
         return '米灰中性色调，极简优雅风格';
-    }
-  }
-
-  IconData get icon {
-    switch (this) {
-      case AppThemeStyle.modern:
-        return Icons.palette;
-      case AppThemeStyle.luxury:
-        return Icons.diamond;
     }
   }
 

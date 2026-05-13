@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/data/file_store.dart';
@@ -9,63 +9,57 @@ import '../../../core/themes/modern_theme.dart';
 import '../domain/app_theme_style.dart';
 import '../domain/theme_mode.dart';
 
+class ThemeLoadResult {
+  const ThemeLoadResult({
+    required this.style,
+    required this.mode,
+  });
+
+  final AppThemeStyle style;
+  final AppThemeMode mode;
+}
+
 class ThemeService {
-  ThemeService._();
-
-  static final ThemeService instance = ThemeService._();
-
   static const String _storagePath = 'settings/theme.json';
 
   final _store = FileStore();
-  final ValueNotifier<AppThemeStyle> currentStyle = ValueNotifier(
-    AppThemeStyle.modern,
-  );
-  final ValueNotifier<AppThemeMode> currentMode = ValueNotifier(
-    AppThemeMode.system,
-  );
 
-  Future<void> initialize() async {
+  Future<ThemeLoadResult?> load() async {
     final raw = await _store.readJson(_storagePath);
-    if (raw.isNotEmpty) {
-      try {
-        final json = jsonDecode(raw) as Map<String, dynamic>;
+    if (raw.isEmpty) return null;
 
-        final styleName = json['themeStyle'] as String?;
-        if (styleName != null) {
-          currentStyle.value = AppThemeStyle.values.firstWhere(
-            (e) => e.name == styleName,
-            orElse: () => AppThemeStyle.modern,
-          );
-        }
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
 
-        final modeName = json['themeMode'] as String?;
-        if (modeName != null) {
-          currentMode.value = AppThemeMode.values.firstWhere(
-            (e) => e.name == modeName,
-            orElse: () => AppThemeMode.system,
-          );
-        }
-      } catch (_) {
-        currentStyle.value = AppThemeStyle.modern;
-        currentMode.value = AppThemeMode.system;
-      }
+      final styleName = json['themeStyle'] as String?;
+      final style = styleName != null
+          ? AppThemeStyle.values.firstWhere(
+              (e) => e.name == styleName,
+              orElse: () => AppThemeStyle.modern,
+            )
+          : AppThemeStyle.modern;
+
+      final modeName = json['themeMode'] as String?;
+      final mode = modeName != null
+          ? AppThemeMode.values.firstWhere(
+              (e) => e.name == modeName,
+              orElse: () => AppThemeMode.system,
+            )
+          : AppThemeMode.system;
+
+      return ThemeLoadResult(style: style, mode: mode);
+    } catch (_) {
+      return null;
     }
   }
 
-  Future<void> setThemeStyle(AppThemeStyle style) async {
-    currentStyle.value = style;
-    await _save();
-  }
-
-  Future<void> setThemeMode(AppThemeMode mode) async {
-    currentMode.value = mode;
-    await _save();
-  }
-
-  Future<void> _save() async {
+  Future<void> save({
+    required AppThemeStyle style,
+    required AppThemeMode mode,
+  }) async {
     final json = jsonEncode({
-      'themeStyle': currentStyle.value.name,
-      'themeMode': currentMode.value.name,
+      'themeStyle': style.name,
+      'themeMode': mode.name,
     });
     await _store.writeJson(_storagePath, json);
   }

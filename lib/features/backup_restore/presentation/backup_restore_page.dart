@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/animations/animation_builders.dart';
 import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../data/app_backup_service.dart';
@@ -72,17 +73,15 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final shouldImport = await showDialog<bool>(
       context: context,
       builder: (context) {
-        final shad = ShadTheme.of(context);
-        return AlertDialog(
-          backgroundColor: shad.colorScheme.background,
+        return ShadDialog(
           title: const Text('确认导入备份'),
-          content: const Text('导入后会覆盖当前已有的备份数据，是否继续？'),
+          description: const Text('导入后会覆盖当前已有的备份数据，是否继续？'),
           actions: [
-            TextButton(
+            ShadButton.outline(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('取消'),
             ),
-            TextButton(
+            ShadButton(
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('继续导入'),
             ),
@@ -124,7 +123,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     final shad = ShadTheme.of(context);
     final currentSummary = _currentSummary;
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(title: '备份还原', subtitle: '导出当前数据，或导入历史备份进行迁移恢复'),
       body: ListView(
@@ -133,7 +132,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           const PageSectionHeader(
             title: '数据概览',
             subtitle: '先确认当前有哪些数据会被纳入备份，再决定导出或导入。',
-            icon: Icons.inventory_2_outlined,
+            icon: LucideIcons.package,
           ),
           const SizedBox(height: Spacing.md),
           StaggeredAnimationBuilder(
@@ -168,7 +167,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           const PageSectionHeader(
             title: '操作中心',
             subtitle: '把最常用的导出、导入操作集中放在一起，动作更明确，风险提示也更清楚。',
-            icon: Icons.swap_horiz,
+            icon: LucideIcons.arrowLeftRight,
           ),
           const SizedBox(height: Spacing.md),
           StaggeredAnimationBuilder(
@@ -233,7 +232,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
           const PageSectionHeader(
             title: '使用说明',
             subtitle: '把关键风险和恢复预期提前说清楚，避免备份操作像开盲盒。',
-            icon: Icons.info_outline,
+            icon: LucideIcons.info,
           ),
           const SizedBox(height: Spacing.md),
           const StaggeredAnimationBuilder(

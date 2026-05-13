@@ -8,6 +8,7 @@ import 'package:highlight/languages/javascript.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../domain/scheduled_task.dart';
@@ -188,29 +189,84 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
   }
 
   Future<void> _pickStartAt() async {
-    final date = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime(2100),
-      initialDate: _startAt,
-    );
-    if (date == null || !mounted) return;
+    DateTime? selectedDate = _startAt;
+    var selectedHour = _startAt.hour;
+    var selectedMinute = _startAt.minute;
 
-    final time = await showTimePicker(
+    final result = await showDialog<DateTime>(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_startAt),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final shad = ShadTheme.of(context);
+            return ShadDialog(
+              constraints: const BoxConstraints(maxWidth: 400),
+              title: const Text('选择开始时间'),
+              actions: [
+                ShadButton.outline(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                ShadButton(
+                  onPressed: selectedDate == null
+                      ? null
+                      : () {
+                          Navigator.of(context).pop(
+                            DateTime(
+                              selectedDate!.year,
+                              selectedDate!.month,
+                              selectedDate!.day,
+                              selectedHour,
+                              selectedMinute,
+                            ),
+                          );
+                        },
+                  child: const Text('确定'),
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('日期', style: shad.textTheme.small),
+                  const SizedBox(height: 8),
+                  ShadDatePicker(
+                    selected: selectedDate,
+                    onChanged: (date) {
+                      setDialogState(() => selectedDate = date);
+                    },
+                    fromMonth: DateTime.now().subtract(
+                      const Duration(days: 1),
+                    ),
+                    toMonth: DateTime(2100),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('时间', style: shad.textTheme.small),
+                  const SizedBox(height: 8),
+                  ShadTimePicker(
+                    initialValue: ShadTimeOfDay(
+                      hour: selectedHour,
+                      minute: selectedMinute,
+                      second: 0,
+                    ),
+                    showSeconds: false,
+                    onChanged: (time) {
+                      setDialogState(() {
+                        selectedHour = time.hour;
+                        selectedMinute = time.minute;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-    if (time == null || !mounted) return;
 
-    setState(() {
-      _startAt = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
-    });
+    if (result == null || !mounted) return;
+    setState(() => _startAt = result);
   }
 
   Future<void> _openVariableEditor({int? index}) async {
@@ -246,135 +302,120 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
           }
 
           final shad = ShadTheme.of(context);
-          return Dialog(
-            backgroundColor: shad.colorScheme.background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+          return ShadDialog(
+            constraints: const BoxConstraints(maxWidth: 520),
+            title: Text(
+              index == null ? '新增变量' : '编辑变量',
+              style: shad.textTheme.h4,
             ),
-            child: SizedBox(
-              width: 520,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      index == null ? '新增变量' : '编辑变量',
-                      style: shad.textTheme.h4,
-                    ),
-                    const SizedBox(height: 20),
-                    ShadInput(
-                      controller: nameCtrl,
-                      placeholder: const Text('变量名'),
-                    ),
-                    const SizedBox(height: 12),
-                    ShadSelect<TaskVariableType>(
-                      key: ValueKey(type),
-                      initialValue: type,
-                      placeholder: const Text('变量类型'),
-                      selectedOptionBuilder: (_, v) =>
-                          Text(_variableTypeLabel(v)),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setDialogState(() {
-                            type = v;
-                            validationMessage = null;
-                          });
-                        }
-                      },
-                      options: TaskVariableType.values
-                          .map(
-                            (v) => ShadOption(
-                              value: v,
-                              child: Text(_variableTypeLabel(v)),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    if (type == TaskVariableType.boolean)
-                      Row(
-                        children: [
-                          ShadSwitch(
-                            value: boolValue,
-                            onChanged: (v) =>
-                                setDialogState(() => boolValue = v),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            boolValue ? 'true' : 'false',
-                            style: shad.textTheme.small,
-                          ),
-                        ],
-                      )
-                    else
-                      (type == TaskVariableType.object
-                          ? ShadTextarea(
-                              controller: valueCtrl,
-                              placeholder: const Text('变量值（JSON / JS对象）'),
-                            )
-                          : ShadTextarea(
-                              controller: valueCtrl,
-                              placeholder: const Text('变量值'),
-                            )),
-                    if (type == TaskVariableType.object) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        '兼容模式：支持 {a:1}、单引号、尾逗号，保存时会按标准 JSON 解析。',
-                        style: shad.textTheme.muted.copyWith(fontSize: 11),
-                      ),
-                    ],
-                    if (validationMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        validationMessage!,
-                        style: TextStyle(
-                          color: shad.colorScheme.destructive,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ShadButton.outline(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                        const SizedBox(width: 8),
-                        ShadButton(
-                          onPressed: () {
-                            final name = nameCtrl.text.trim();
-                            if (name.isEmpty) {
-                              setDialogState(
-                                () => validationMessage = '变量名不能为空',
-                              );
-                              return;
-                            }
-                            try {
-                              final value = parsedValue();
-                              Navigator.of(context).pop(
-                                TaskVariable(
-                                  name: name,
-                                  type: type,
-                                  value: value,
-                                ),
-                              );
-                            } catch (e) {
-                              setDialogState(
-                                () => validationMessage = e.toString(),
-                              );
-                            }
-                          },
-                          child: const Text('保存'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            actions: [
+              ShadButton.outline(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
               ),
+              ShadButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    setDialogState(
+                      () => validationMessage = '变量名不能为空',
+                    );
+                    return;
+                  }
+                  try {
+                    final value = parsedValue();
+                    Navigator.of(context).pop(
+                      TaskVariable(
+                        name: name,
+                        type: type,
+                        value: value,
+                      ),
+                    );
+                  } catch (e) {
+                    setDialogState(
+                      () => validationMessage = e.toString(),
+                    );
+                  }
+                },
+                child: const Text('保存'),
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShadInput(
+                  controller: nameCtrl,
+                  placeholder: const Text('变量名'),
+                ),
+                const SizedBox(height: 12),
+                ShadSelect<TaskVariableType>(
+                  key: ValueKey(type),
+                  initialValue: type,
+                  placeholder: const Text('变量类型'),
+                  selectedOptionBuilder: (_, v) =>
+                      Text(_variableTypeLabel(v)),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setDialogState(() {
+                        type = v;
+                        validationMessage = null;
+                      });
+                    }
+                  },
+                  options: TaskVariableType.values
+                      .map(
+                        (v) => ShadOption(
+                          value: v,
+                          child: Text(_variableTypeLabel(v)),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                if (type == TaskVariableType.boolean)
+                  Row(
+                    children: [
+                      ShadSwitch(
+                        value: boolValue,
+                        onChanged: (v) =>
+                            setDialogState(() => boolValue = v),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        boolValue ? 'true' : 'false',
+                        style: shad.textTheme.small,
+                      ),
+                    ],
+                  )
+                else
+                  (type == TaskVariableType.object
+                      ? ShadTextarea(
+                          controller: valueCtrl,
+                          placeholder: const Text('变量值（JSON / JS对象）'),
+                        )
+                      : ShadTextarea(
+                          controller: valueCtrl,
+                          placeholder: const Text('变量值'),
+                        )),
+                if (type == TaskVariableType.object) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '兼容模式：支持 {a:1}、单引号、尾逗号，保存时会按标准 JSON 解析。',
+                    style: shad.textTheme.muted.copyWith(fontSize: 11),
+                  ),
+                ],
+                if (validationMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    validationMessage!,
+                    style: TextStyle(
+                      color: shad.colorScheme.destructive,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
             ),
           );
         },
@@ -641,7 +682,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: _isEditing ? '编辑任务' : '新增任务',
@@ -668,7 +709,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
           const PageSectionHeader(
             title: '任务配置',
             subtitle: '把任务名称、类型、变量和调度参数放进同一块配置工作区，编辑时不再东找西找。',
-            icon: Icons.edit_note,
+            icon: LucideIcons.filePen,
           ),
           const SizedBox(height: Spacing.md),
           ShadInput(controller: _nameCtrl, placeholder: const Text('任务名称')),

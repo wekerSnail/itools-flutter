@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../../hotkey_settings/presentation/hotkey_settings_page.dart';
@@ -48,7 +49,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(
         title: '设置',
@@ -61,7 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const PageSectionHeader(
             title: '偏好入口',
             subtitle: '把常用配置集中在一个地方，入口表达更统一、层级也更清楚。',
-            icon: Icons.tune,
+            icon: LucideIcons.slidersHorizontal,
           ),
           const SizedBox(height: Spacing.md),
           ..._menuItems.asMap().entries.map((entry) {

@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/providers/task_runner_provider.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/loading_widgets.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
-import '../application/task_runner.dart';
 
-class TaskLogsPage extends StatelessWidget {
+class TaskLogsPage extends ConsumerWidget {
   const TaskLogsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final shad = ShadTheme.of(context);
-    return Scaffold(
+    final logs = ref.watch(logsProvider);
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(
         title: '运行日志',
@@ -26,7 +29,7 @@ class TaskLogsPage extends StatelessWidget {
           const PageSectionHeader(
             title: '日志总览',
             subtitle: '执行记录、保留周期和空状态统一在一个日志工作区里。',
-            icon: Icons.receipt_long_outlined,
+            icon: LucideIcons.fileText,
           ),
           const SizedBox(height: Spacing.md),
           SurfaceCard(
@@ -53,7 +56,7 @@ class TaskLogsPage extends StatelessWidget {
           SizedBox(
             height: 520,
             child: ValueListenableBuilder<List<String>>(
-              valueListenable: TaskRunner.instance.logs,
+              valueListenable: logs,
               builder: (context, logs, _) {
                 if (logs.isEmpty) {
                   return const SurfaceCard(

@@ -1,34 +1,35 @@
 import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/animations/animation_builders.dart';
 import '../../../core/design_tokens/index.dart';
+import '../../../core/providers/scheduler_provider.dart';
+import '../../../core/providers/task_runner_provider.dart';
+import '../../../core/widgets/custom_progress.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/loading_widgets.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
-import '../application/scheduler_service.dart';
-import '../application/task_runner.dart';
 import '../domain/scheduled_task.dart';
 import 'task_editor_page.dart';
 import 'task_logs_page.dart';
 
-class SchedulerPage extends StatefulWidget {
+class SchedulerPage extends ConsumerStatefulWidget {
   const SchedulerPage({super.key});
 
   @override
-  State<SchedulerPage> createState() => _SchedulerPageState();
+  ConsumerState<SchedulerPage> createState() => _SchedulerPageState();
 }
 
-class _SchedulerPageState extends State<SchedulerPage> {
+class _SchedulerPageState extends ConsumerState<SchedulerPage> {
   final Set<String> _runningTaskIds = <String>{};
 
   @override
   void initState() {
     super.initState();
-    SchedulerService.instance.reloadTasks().then((_) {
-      if (mounted) {
-        setState(() {});
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(schedulerProvider.notifier).reload();
     });
   }
 
@@ -41,34 +42,42 @@ class _SchedulerPageState extends State<SchedulerPage> {
     );
     if (savedTask == null || !mounted) return;
 
-    final service = SchedulerService.instance;
+    final notifier = ref.read(schedulerProvider.notifier);
     if (task != null) {
-      service.updateTask(savedTask);
+      await notifier.updateTask(savedTask);
     } else {
-      service.addTask(savedTask);
-    }
-    await service.saveTasks();
-    if (mounted) {
-      setState(() {});
+      await notifier.addTask(savedTask);
     }
   }
 
   Future<void> _toggleTask(ScheduledTask task, bool enabled) async {
-    final service = SchedulerService.instance
-      ..updateTask(task.copyWith(enabled: enabled));
-    await service.saveTasks();
-    if (mounted) {
-      setState(() {});
-    }
+    await ref
+        .read(schedulerProvider.notifier)
+        .updateTask(task.copyWith(enabled: enabled));
   }
 
   Future<void> _deleteTask(ScheduledTask task) async {
-    final service = SchedulerService.instance
-      ..removeTask(task.id);
-    await service.saveTasks();
-    if (mounted) {
-      setState(() {});
-    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return ShadDialog(
+          title: const Text('删除任务'),
+          description: Text('确定要删除「${task.name}」吗？此操作不可撤销。'),
+          actions: [
+            ShadButton.outline(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            ShadButton.destructive(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('确定删除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    await ref.read(schedulerProvider.notifier).removeTask(task.id);
   }
 
   void _showToast(String message) {
@@ -84,7 +93,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
     _showToast('开始测试运行：${task.name}');
 
     try {
-      await TaskRunner.instance.runNow(task);
+      await ref.read(taskRunnerProvider).runNow(task);
       if (!mounted) return;
       _showToast('任务已执行完成：${task.name}');
     } catch (error) {
@@ -131,8 +140,9 @@ class _SchedulerPageState extends State<SchedulerPage> {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    final tasks = SchedulerService.instance.tasks;
-    return Scaffold(
+    final tasksAsync = ref.watch(schedulerProvider);
+
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: '定时任务',
@@ -170,25 +180,32 @@ class _SchedulerPageState extends State<SchedulerPage> {
           const SizedBox(width: Spacing.xs),
         ],
       ),
-      body: tasks.isEmpty
-          ? _buildEmptyState(shad)
-          : ListView(
-              padding: const EdgeInsets.all(Spacing.lg),
-              children: [
-                const PageSectionHeader(
-                  title: '任务总览',
-                  subtitle: '把定时任务的状态、频率和操作入口放在一套统一的列表语言里。',
-                  icon: Icons.schedule,
+      body: tasksAsync.when(
+        loading: () => const Center(child: CustomCircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('加载失败: $error')),
+        data: (tasks) {
+          if (tasks.isEmpty) {
+            return _buildEmptyState(shad);
+          }
+          return ListView(
+            padding: const EdgeInsets.all(Spacing.lg),
+            children: [
+              const PageSectionHeader(
+                title: '任务总览',
+                subtitle: '把定时任务的状态、频率和操作入口放在一套统一的列表语言里。',
+                icon: LucideIcons.clock,
+              ),
+              const SizedBox(height: Spacing.md),
+              ...tasks.asMap().entries.map(
+                (entry) => StaggeredAnimationBuilder(
+                  index: entry.key,
+                  child: _buildTaskCard(context, shad, entry.value),
                 ),
-                const SizedBox(height: Spacing.md),
-                ...tasks.asMap().entries.map(
-                  (entry) => StaggeredAnimationBuilder(
-                    index: entry.key,
-                    child: _buildTaskCard(context, shad, entry.value),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -199,7 +216,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
         const PageSectionHeader(
           title: '任务总览',
           subtitle: '从这里创建、管理和快速运行任务，空状态也保持统一的桌面工具层级。',
-          icon: Icons.schedule,
+          icon: LucideIcons.clock,
         ),
         const SizedBox(height: Spacing.md),
         SurfaceCard(
@@ -208,7 +225,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
             child: EmptyStateWidget(
               icon: LucideIcons.calendarClock,
               title: '暂无定时任务',
-              description: '点击右上角“添加任务”开始创建',
+              description: '点击右上角"添加任务"开始创建',
               action: ShadButton(
                 onPressed: () => _openEditor(),
                 child: const Row(
@@ -307,7 +324,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
                       ? const SizedBox(
                           width: 15,
                           height: 15,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CustomCircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(LucideIcons.play, size: 15),
                 ),

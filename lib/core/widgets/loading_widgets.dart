@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../design_tokens/index.dart';
 

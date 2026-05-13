@@ -1,19 +1,22 @@
-import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
-import '../../../core/system/app_tray_service.dart';
+import '../../../core/providers/tray_provider.dart';
+import '../../../core/widgets/custom_progress.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 
-class AutostartSettingsPage extends StatefulWidget {
+class AutostartSettingsPage extends ConsumerStatefulWidget {
   const AutostartSettingsPage({super.key});
 
   @override
-  State<AutostartSettingsPage> createState() => _AutostartSettingsPageState();
+  ConsumerState<AutostartSettingsPage> createState() => _AutostartSettingsPageState();
 }
 
-class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
+class _AutostartSettingsPageState extends ConsumerState<AutostartSettingsPage> {
   bool _isEnabled = false;
   bool _loading = true;
   bool _busy = false;
@@ -21,13 +24,13 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _loadStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStatus());
   }
 
   Future<void> _loadStatus() async {
     setState(() => _loading = true);
     try {
-      final status = await AppTrayService.instance.checkLaunchAtStartupStatus();
+      final status = await ref.read(trayServiceProvider).checkLaunchAtStartupStatus();
       if (mounted) {
         setState(() {
           _isEnabled = status;
@@ -51,9 +54,9 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
     try {
       bool result;
       if (value) {
-        result = await AppTrayService.instance.enableLaunchAtStartup();
+        result = await ref.read(trayServiceProvider).enableLaunchAtStartup();
       } else {
-        await AppTrayService.instance.disableLaunchAtStartup();
+        await ref.read(trayServiceProvider).disableLaunchAtStartup();
         result = true;
       }
 
@@ -81,7 +84,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(
         title: '开机自启',
@@ -94,7 +97,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
           const PageSectionHeader(
             title: '启动开关',
             subtitle: '把开机自启的状态、说明和操作入口集中在一起，减少来回找设置的成本。',
-            icon: Icons.power_settings_new,
+            icon: LucideIcons.power,
           ),
           const SizedBox(height: Spacing.md),
           SurfaceCard(
@@ -119,7 +122,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
                 ),
                 const SizedBox(height: Spacing.md),
                 if (_loading)
-                  const Center(child: CircularProgressIndicator())
+                  const Center(child: CustomCircularProgressIndicator())
                 else
                   Row(
                     children: [
@@ -156,7 +159,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
           const PageSectionHeader(
             title: '使用说明',
             subtitle: '先讲清它是怎么工作的，再避免误以为开关一开就万事大吉。',
-            icon: Icons.info_outline,
+            icon: LucideIcons.info,
           ),
           const SizedBox(height: Spacing.md),
           SurfaceCard(
@@ -194,7 +197,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
           const PageSectionHeader(
             title: '故障排查',
             subtitle: '给出最常见的恢复路径，避免用户遇到问题只能靠猜。',
-            icon: Icons.build_circle_outlined,
+            icon: LucideIcons.settings,
           ),
           const SizedBox(height: Spacing.md),
           SurfaceCard(
@@ -251,7 +254,7 @@ class _AutostartSettingsPageState extends State<AutostartSettingsPage> {
   Future<void> _fixAutostart() async {
     setState(() => _busy = true);
     try {
-      final result = await AppTrayService.instance.fixLaunchAtStartup();
+      final result = await ref.read(trayServiceProvider).fixLaunchAtStartup();
       await _loadStatus();
 
       if (mounted) {

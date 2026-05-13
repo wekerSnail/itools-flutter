@@ -1,17 +1,21 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:itools/app.dart';
+import 'package:itools/core/providers/theme_provider.dart';
 
 void main() {
   testWidgets('Home page is displayed', (WidgetTester tester) async {
-    await tester.pumpWidget(const ToolboxApp());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          themeProvider.overrideWith(
+            () => _TestThemeNotifier(),
+          ),
+        ],
+        child: const ToolboxApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Windows 工具集'), findsOneWidget);
@@ -20,4 +24,11 @@ void main() {
     expect(find.text('文件夹映射'), findsOneWidget);
     expect(find.text('JSON 格式化'), findsOneWidget);
   });
+}
+
+class _TestThemeNotifier extends ThemeNotifier {
+  @override
+  Future<ThemeState> build() async {
+    return const ThemeState();
+  }
 }

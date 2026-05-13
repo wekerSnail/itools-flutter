@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../features/home/presentation/home_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
@@ -10,22 +10,32 @@ class AppRouter {
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     if (settings.name == AppRoutes.home) {
-      return MaterialPageRoute<void>(builder: (_) => const HomePage());
+      return PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => const HomePage(),
+        settings: settings,
+      );
     }
 
     if (settings.name == AppRoutes.settings) {
-      return MaterialPageRoute<void>(builder: (_) => const SettingsPage());
+      return PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => const SettingsPage(),
+        settings: settings,
+      );
     }
 
     final tool = ToolRegistry.tools
         .where((t) => t.route == settings.name)
         .firstOrNull;
     if (tool != null) {
-      return MaterialPageRoute<void>(builder: tool.builder, settings: settings);
+      return PageRouteBuilder<void>(
+        pageBuilder: (context, __, ___) => tool.builder(context),
+        settings: settings,
+      );
     }
 
-    return MaterialPageRoute<void>(
-      builder: (_) => const Scaffold(body: Center(child: Text('页面不存在'))),
+    return PageRouteBuilder<void>(
+      pageBuilder: (_, __, ___) =>
+          const Center(child: Text('页面不存在')),
     );
   }
 }

@@ -8,9 +8,8 @@ import '../../../core/data/file_store.dart';
 import '../domain/scheduled_task.dart';
 
 class TaskRunner {
-  TaskRunner._();
+  TaskRunner();
 
-  static final TaskRunner instance = TaskRunner._();
   static const String _logsPath = 'scheduler/logs.json';
   static const Duration _logRetentionDuration = Duration(days: 5);
   final _store = FileStore();

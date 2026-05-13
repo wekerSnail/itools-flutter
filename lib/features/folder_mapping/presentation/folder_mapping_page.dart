@@ -6,6 +6,7 @@ import 'package:flutter/material.dart' hide Typography;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../application/folder_opener.dart';
@@ -63,22 +64,17 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        final shad = ShadTheme.of(context);
-        return AlertDialog(
-          backgroundColor: shad.colorScheme.background,
+        return ShadDialog(
           title: Text(title),
-          content: Text(content),
+          description: Text(content),
           actions: [
-            TextButton(
+            ShadButton.outline(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('取消'),
             ),
-            TextButton(
+            ShadButton.destructive(
               onPressed: () => Navigator.of(context).pop(true),
-              child: Text(
-                '确定删除',
-                style: TextStyle(color: shad.colorScheme.destructive),
-              ),
+              child: const Text('确定删除'),
             ),
           ],
         );
@@ -96,85 +92,69 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialog) {
           final shad = ShadTheme.of(context);
-          return Dialog(
-            backgroundColor: shad.colorScheme.background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
-            ),
-            child: SizedBox(
-              width: 480,
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          LucideIcons.folderOpen,
-                          size: 18,
-                          color: shad.colorScheme.foreground,
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        Text(
-                          original == null ? '新增集合' : '编辑集合',
-                          style: Typography.h4.copyWith(
-                            color: shad.colorScheme.foreground,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: Spacing.md),
-                    ShadInput(
-                      controller: nameCtrl,
-                      placeholder: const Text('集合名称'),
-                      autofocus: true,
-                    ),
-                    if (errorMsg != null) ...[
-                      const SizedBox(height: Spacing.xs),
-                      Text(
-                        errorMsg!,
-                        style: Typography.caption.copyWith(
-                          color: shad.colorScheme.destructive,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: Spacing.cardPadding),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ShadButton.outline(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        ShadButton(
-                          onPressed: () {
-                            final name = nameCtrl.text.trim();
-                            if (name.isEmpty) {
-                              setDialog(() => errorMsg = '集合名称不能为空');
-                              return;
-                            }
-                            Navigator.of(context).pop(
-                              FolderCollection(
-                                id:
-                                    original?.id ??
-                                    '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
-                                name: name,
-                                items: original?.items ?? <FolderShortcut>[],
-                                createdAt:
-                                    original?.createdAt ?? DateTime.now(),
-                              ),
-                            );
-                          },
-                          child: const Text('保存'),
-                        ),
-                      ],
-                    ),
-                  ],
+          return ShadDialog(
+            constraints: const BoxConstraints(maxWidth: 480),
+            title: Row(
+              children: [
+                Icon(
+                  LucideIcons.folderOpen,
+                  size: 18,
+                  color: shad.colorScheme.foreground,
                 ),
+                const SizedBox(width: Spacing.sm),
+                Text(
+                  original == null ? '新增集合' : '编辑集合',
+                  style: Typography.h4.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ShadButton.outline(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
               ),
+              ShadButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    setDialog(() => errorMsg = '集合名称不能为空');
+                    return;
+                  }
+                  Navigator.of(context).pop(
+                    FolderCollection(
+                      id:
+                          original?.id ??
+                          '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
+                      name: name,
+                      items: original?.items ?? <FolderShortcut>[],
+                      createdAt: original?.createdAt ?? DateTime.now(),
+                    ),
+                  );
+                },
+                child: const Text('保存'),
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShadInput(
+                  controller: nameCtrl,
+                  placeholder: const Text('集合名称'),
+                  autofocus: true,
+                ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: Spacing.xs),
+                  Text(
+                    errorMsg!,
+                    style: Typography.caption.copyWith(
+                      color: shad.colorScheme.destructive,
+                    ),
+                  ),
+                ],
+              ],
             ),
           );
         },
@@ -236,110 +216,94 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
             }
           }
 
-          return Dialog(
-            backgroundColor: shad.colorScheme.background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+          return ShadDialog(
+            constraints: const BoxConstraints(maxWidth: 520),
+            title: Row(
+              children: [
+                Icon(
+                  LucideIcons.link,
+                  size: 18,
+                  color: shad.colorScheme.foreground,
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text(
+                  original == null ? '新增快捷方式' : '编辑快捷方式',
+                  style: Typography.h4.copyWith(
+                    color: shad.colorScheme.foreground,
+                  ),
+                ),
+              ],
             ),
-            child: SizedBox(
-              width: 520,
-              child: Padding(
-                padding: const EdgeInsets.all(Spacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            actions: [
+              ShadButton.outline(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              ShadButton(
+                onPressed: () {
+                  final name = nameCtrl.text.trim();
+                  final target = targetCtrl.text.trim();
+                  if (name.isEmpty || target.isEmpty) {
+                    setDialog(() => errorMsg = '名称和目录不能为空');
+                    return;
+                  }
+                  Navigator.of(context).pop(
+                    FolderShortcut(
+                      id:
+                          original?.id ??
+                          '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
+                      name: name,
+                      targetPath: target,
+                      createdAt: original?.createdAt ?? DateTime.now(),
+                    ),
+                  );
+                },
+                child: const Text('保存'),
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShadInput(
+                  controller: nameCtrl,
+                  placeholder: const Text('快捷方式名称'),
+                  autofocus: true,
+                ),
+                const SizedBox(height: Spacing.sm),
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          LucideIcons.link,
-                          size: 18,
-                          color: shad.colorScheme.foreground,
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        Text(
-                          original == null ? '新增快捷方式' : '编辑快捷方式',
-                          style: Typography.h4.copyWith(
-                            color: shad.colorScheme.foreground,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: Spacing.md),
-                    ShadInput(
-                      controller: nameCtrl,
-                      placeholder: const Text('快捷方式名称'),
-                      autofocus: true,
-                    ),
-                    const SizedBox(height: Spacing.sm),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ShadInput(
-                            controller: targetCtrl,
-                            placeholder: const Text('目标目录路径'),
-                          ),
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        ShadButton.outline(
-                          size: ShadButtonSize.sm,
-                          onPressed: pickTarget,
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.folderOpen, size: 14),
-                              SizedBox(width: Spacing.xs),
-                              Text('浏览'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (errorMsg != null) ...[
-                      const SizedBox(height: Spacing.xs),
-                      Text(
-                        errorMsg!,
-                        style: Typography.caption.copyWith(
-                          color: shad.colorScheme.destructive,
-                        ),
+                    Expanded(
+                      child: ShadInput(
+                        controller: targetCtrl,
+                        placeholder: const Text('目标目录路径'),
                       ),
-                    ],
-                    const SizedBox(height: Spacing.cardPadding),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ShadButton.outline(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('取消'),
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        ShadButton(
-                          onPressed: () {
-                            final name = nameCtrl.text.trim();
-                            final target = targetCtrl.text.trim();
-                            if (name.isEmpty || target.isEmpty) {
-                              setDialog(() => errorMsg = '名称和目录不能为空');
-                              return;
-                            }
-                            Navigator.of(context).pop(
-                              FolderShortcut(
-                                id:
-                                    original?.id ??
-                                    '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
-                                name: name,
-                                targetPath: target,
-                                createdAt:
-                                    original?.createdAt ?? DateTime.now(),
-                              ),
-                            );
-                          },
-                          child: const Text('保存'),
-                        ),
-                      ],
+                    ),
+                    const SizedBox(width: Spacing.sm),
+                    ShadButton.outline(
+                      size: ShadButtonSize.sm,
+                      onPressed: pickTarget,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.folderOpen, size: 14),
+                          SizedBox(width: Spacing.xs),
+                          Text('浏览'),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: Spacing.xs),
+                  Text(
+                    errorMsg!,
+                    style: Typography.caption.copyWith(
+                      color: shad.colorScheme.destructive,
+                    ),
+                  ),
+                ],
+              ],
             ),
           );
         },
@@ -453,7 +417,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
             child: PageSectionHeader(
               title: '集合管理',
               subtitle: '把目录集合集中管理，再在右侧维护每个集合下的快捷方式。',
-              icon: Icons.folder_copy_outlined,
+              icon: LucideIcons.folders,
               trailing: ShadButton.ghost(
                 size: ShadButtonSize.sm,
                 onPressed: _createOrEditCollection,
@@ -461,7 +425,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
               ),
             ),
           ),
-          Divider(height: 1, color: shad.colorScheme.border),
+          Container(height: 1, color: shad.colorScheme.border),
           Expanded(
             child: _collections.isEmpty
                 ? Center(
@@ -560,25 +524,21 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
                                     ],
                                   ),
                                 ),
-                                PopupMenuButton<String>(
-                                  padding: EdgeInsets.zero,
-                                  onSelected: (value) async {
-                                    if (value == 'edit') {
-                                      await _createOrEditCollection(
-                                        original: item,
-                                      );
-                                    } else if (value == 'delete') {
-                                      await _removeCollection(item);
-                                    }
-                                  },
-                                  itemBuilder: (_) => const [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text('编辑集合'),
+                                _PopupMenu(
+                                  items: [
+                                    _PopupMenuItem(
+                                      label: '编辑集合',
+                                      onTap: () async {
+                                        await _createOrEditCollection(
+                                          original: item,
+                                        );
+                                      },
                                     ),
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text('删除集合'),
+                                    _PopupMenuItem(
+                                      label: '删除集合',
+                                      onTap: () async {
+                                        await _removeCollection(item);
+                                      },
                                     ),
                                   ],
                                   child: Icon(
@@ -675,7 +635,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
               ],
             ),
           ),
-          Divider(height: 1, color: shad.colorScheme.border),
+          Container(height: 1, color: shad.colorScheme.border),
           Expanded(
             child: collection.items.isEmpty
                 ? Center(
@@ -729,7 +689,7 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: '文件夹快捷方式',
@@ -860,21 +820,20 @@ class _ShortcutCardState extends State<_ShortcutCard> {
                     ),
                   ),
                 ] else
-                  PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    onSelected: (value) {
-                      if (value == 'open') {
-                        widget.onOpen();
-                      } else if (value == 'edit') {
-                        widget.onEdit();
-                      } else if (value == 'delete') {
-                        widget.onDelete();
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'open', child: Text('打开目录')),
-                      PopupMenuItem(value: 'edit', child: Text('编辑快捷方式')),
-                      PopupMenuItem(value: 'delete', child: Text('删除快捷方式')),
+                  ShadContextMenu(
+                    items: [
+                      ShadContextMenuItem(
+                        onPressed: widget.onOpen,
+                        child: const Text('打开目录'),
+                      ),
+                      ShadContextMenuItem(
+                        onPressed: widget.onEdit,
+                        child: const Text('编辑快捷方式'),
+                      ),
+                      ShadContextMenuItem(
+                        onPressed: widget.onDelete,
+                        child: const Text('删除快捷方式'),
+                      ),
                     ],
                     child: Icon(
                       LucideIcons.ellipsis,
@@ -889,4 +848,138 @@ class _ShortcutCardState extends State<_ShortcutCard> {
       ),
     );
   }
+}
+
+class _PopupMenu extends StatefulWidget {
+  const _PopupMenu({
+    required this.items,
+    required this.child,
+  });
+
+  final List<_PopupMenuItem> items;
+  final Widget child;
+
+  @override
+  State<_PopupMenu> createState() => _PopupMenuState();
+}
+
+class _PopupMenuState extends State<_PopupMenu> {
+  OverlayEntry? _overlayEntry;
+  final LayerLink _layerLink = LayerLink();
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _showMenu() {
+    _removeOverlay();
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => _PopupMenuOverlay(
+        items: widget.items,
+        layerLink: _layerLink,
+        onDismiss: _removeOverlay,
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Listener(
+        onPointerDown: (event) {
+          _showMenu();
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _PopupMenuOverlay extends StatelessWidget {
+  const _PopupMenuOverlay({
+    required this.items,
+    required this.layerLink,
+    required this.onDismiss,
+  });
+
+  final List<_PopupMenuItem> items;
+  final LayerLink layerLink;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final shad = ShadTheme.of(context);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: onDismiss,
+            behavior: HitTestBehavior.translucent,
+          ),
+        ),
+        CompositedTransformFollower(
+          link: layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(-100, 25),
+          child: IntrinsicWidth(
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 100, maxWidth: 150),
+              decoration: BoxDecoration(
+                color: shad.colorScheme.card,
+                border: Border.all(color: shad.colorScheme.border),
+                borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+                boxShadow: Shadows.md,
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: items.map((item) {
+                  return GestureDetector(
+                    onTap: () {
+                      onDismiss();
+                      item.onTap();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.sm,
+                        vertical: Spacing.xs,
+                      ),
+                      child: Text(
+                        item.label,
+                        style: Typography.bodySmall.copyWith(
+                          color: shad.colorScheme.foreground,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PopupMenuItem {
+  const _PopupMenuItem({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
 }

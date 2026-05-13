@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_riverpod: ^2.6.1
 
   window_manager: ^0.5.1
   desktop_multi_window: ^0.3.0

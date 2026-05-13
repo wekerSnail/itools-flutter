@@ -1,42 +1,36 @@
 import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/providers/hotkey_provider.dart';
+import '../../../core/widgets/custom_progress.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
-import '../application/hotkey_service.dart';
 import '../data/hotkey_action_registry.dart';
 import '../domain/hotkey_action_descriptor.dart';
 import '../domain/hotkey_config.dart';
 
-class HotkeySettingsPage extends StatefulWidget {
+class HotkeySettingsPage extends ConsumerStatefulWidget {
   const HotkeySettingsPage({super.key});
 
   @override
-  State<HotkeySettingsPage> createState() => _HotkeySettingsPageState();
+  ConsumerState<HotkeySettingsPage> createState() =>
+      _HotkeySettingsPageState();
 }
 
-class _HotkeySettingsPageState extends State<HotkeySettingsPage> {
-  final _service = HotkeyService.instance;
+class _HotkeySettingsPageState extends ConsumerState<HotkeySettingsPage> {
   final _registry = HotkeyActionRegistry.instance;
-
-  @override
-  void initState() {
-    super.initState();
-    _service.reload().then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
 
   void _showToast(String message) {
     ShadToaster.of(context).show(ShadToast(description: Text(message)));
   }
 
   Future<void> _editHotkey(HotkeyActionDescriptor action) async {
-    final existingConfig = _service.getConfig(action.id);
+    final notifier = ref.read(hotkeyProvider.notifier);
+    final existingConfig = notifier.getConfig(action.id);
 
     final result = await showDialog<HotkeyConfig>(
       context: context,
@@ -49,15 +43,11 @@ class _HotkeySettingsPageState extends State<HotkeySettingsPage> {
     if (result == null) return;
 
     if (result.key.isEmpty) {
-      await _service.removeConfig(action.id);
+      await notifier.removeConfig(action.id);
       _showToast('已清除 ${action.title} 的热键');
     } else {
-      await _service.updateConfig(result);
+      await notifier.updateConfig(result);
       _showToast('已保存 ${action.title} 的热键：${result.displayText}');
-    }
-
-    if (mounted) {
-      setState(() {});
     }
   }
 
@@ -65,68 +55,73 @@ class _HotkeySettingsPageState extends State<HotkeySettingsPage> {
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
     final actions = _registry.actions;
+    final configsAsync = ref.watch(hotkeyProvider);
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(
         title: '热键设置',
         subtitle: '配置全局快捷键，快速触发常用操作',
         showBack: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(Spacing.lg),
-        children: [
-          const PageSectionHeader(
-            title: '热键说明',
-            subtitle: '全局热键可以在应用最小化或在后台时触发，方便快速操作。',
-            icon: Icons.keyboard_outlined,
-          ),
-          const SizedBox(height: Spacing.md),
-          SurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      LucideIcons.info,
-                      size: 16,
-                      color: shad.colorScheme.foreground,
-                    ),
-                    const SizedBox(width: Spacing.sm),
-                    Text(
-                      '使用说明',
-                      style: Typography.label.copyWith(
+      body: configsAsync.when(
+        loading: () => const Center(child: CustomCircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('加载失败: $error')),
+        data: (_) => ListView(
+          padding: const EdgeInsets.all(Spacing.lg),
+          children: [
+            const PageSectionHeader(
+              title: '热键说明',
+              subtitle: '全局热键可以在应用最小化或在后台时触发，方便快速操作。',
+              icon: LucideIcons.keyboard,
+            ),
+            const SizedBox(height: Spacing.md),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        LucideIcons.info,
+                        size: 16,
                         color: shad.colorScheme.foreground,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: Spacing.sm),
-                const Text('• 点击动作卡片可配置或修改热键'),
-                const SizedBox(height: Spacing.xs),
-                const Text('• 在弹出的对话框中按下想要的热键组合'),
-                const SizedBox(height: Spacing.xs),
-                const Text('• 热键设置会随备份一起保存和恢复'),
-                const SizedBox(height: Spacing.xs),
-                const Text('• 建议避免与系统或其他应用的热键冲突'),
-              ],
+                      const SizedBox(width: Spacing.sm),
+                      Text(
+                        '使用说明',
+                        style: Typography.label.copyWith(
+                          color: shad.colorScheme.foreground,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Spacing.sm),
+                  const Text('• 点击动作卡片可配置或修改热键'),
+                  const SizedBox(height: Spacing.xs),
+                  const Text('• 在弹出的对话框中按下想要的热键组合'),
+                  const SizedBox(height: Spacing.xs),
+                  const Text('• 热键设置会随备份一起保存和恢复'),
+                  const SizedBox(height: Spacing.xs),
+                  const Text('• 建议避免与系统或其他应用的热键冲突'),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: Spacing.xl),
-          const PageSectionHeader(
-            title: '可用动作',
-            subtitle: '为以下动作配置全局热键，点击卡片进行设置。',
-            icon: Icons.keyboard_command_key,
-          ),
-          const SizedBox(height: Spacing.md),
-          ...actions.map(
-            (action) => Padding(
-              padding: const EdgeInsets.only(bottom: Spacing.md),
-              child: _buildActionCard(context, shad, action),
+            const SizedBox(height: Spacing.xl),
+            const PageSectionHeader(
+              title: '可用动作',
+              subtitle: '为以下动作配置全局热键，点击卡片进行设置。',
+              icon: LucideIcons.command,
             ),
-          ),
-        ],
+            const SizedBox(height: Spacing.md),
+            ...actions.map(
+              (action) => Padding(
+                padding: const EdgeInsets.only(bottom: Spacing.md),
+                child: _buildActionCard(context, shad, action),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -136,7 +131,8 @@ class _HotkeySettingsPageState extends State<HotkeySettingsPage> {
     ShadThemeData shad,
     HotkeyActionDescriptor action,
   ) {
-    final config = _service.getConfig(action.id);
+    final notifier = ref.read(hotkeyProvider.notifier);
+    final config = notifier.getConfig(action.id);
 
     return InteractiveSurfaceCard(
       onTap: () => _editHotkey(action),
@@ -237,8 +233,9 @@ class _HotkeyEditDialogState extends State<_HotkeyEditDialog> {
     }
 
     final modifiers = _recordedHotKey!.modifiers
-        ?.map((m) => m.name)
-        .toList(growable: false) ?? [];
+            ?.map((m) => m.name)
+            .toList(growable: false) ??
+        [];
 
     Navigator.of(context).pop(
       HotkeyConfig(
@@ -265,10 +262,23 @@ class _HotkeyEditDialogState extends State<_HotkeyEditDialog> {
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return AlertDialog(
-      backgroundColor: shad.colorScheme.background,
+    return ShadDialog(
       title: Text('设置热键 - ${widget.action.title}'),
-      content: Column(
+      actions: [
+        ShadButton.destructive(
+          onPressed: _onClear,
+          child: const Text('清除热键'),
+        ),
+        ShadButton.outline(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        ShadButton(
+          onPressed: _onSave,
+          child: const Text('保存'),
+        ),
+      ],
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -333,20 +343,6 @@ class _HotkeyEditDialogState extends State<_HotkeyEditDialog> {
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _onClear,
-          child: const Text('清除热键'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        TextButton(
-          onPressed: _onSave,
-          child: const Text('保存'),
-        ),
-      ],
     );
   }
 }

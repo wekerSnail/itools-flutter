@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../design_tokens/index.dart';
 
@@ -191,13 +191,16 @@ class _AnimatedElevatedCardState extends State<AnimatedElevatedCard>
           animation: _controller,
           builder: (context, child) {
             final elevation = 2.0 + (_controller.value * 6.0);
-            final shadowColor = Colors.black.withValues(
-              alpha: 0.1 + (_controller.value * 0.1),
+            final shadowColor = Color.fromRGBO(
+              0,
+              0,
+              0,
+              0.1 + (_controller.value * 0.1),
             );
 
             return Container(
               decoration: BoxDecoration(
-                color: widget.backgroundColor ?? Colors.white,
+                color: widget.backgroundColor ?? const Color(0xFFFFFFFF),
                 borderRadius: BorderRadius.circular(BorderRadiusTokens.card),
                 boxShadow: [
                   BoxShadow(

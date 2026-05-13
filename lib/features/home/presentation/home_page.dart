@@ -1,24 +1,26 @@
-import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/animations/animation_builders.dart';
 import '../../../core/design_tokens/index.dart';
-import '../../../core/system/window_manager_service.dart';
+import '../../../core/providers/window_provider.dart';
 import '../../../core/tools/tool_descriptor.dart';
 import '../../../core/tools/tool_registry.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../../../features/settings/presentation/settings_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tools = ToolRegistry.tools;
     final shad = ShadTheme.of(context);
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: PageHeader(
         title: 'Windows 工具集',
@@ -66,7 +68,7 @@ class HomePage extends StatelessWidget {
                     index: i,
                     child: _ToolCard(
                       tool: tools[i],
-                      onTap: () => WindowManagerService.instance.openToolWindow(
+                      onTap: () => ref.read(windowServiceProvider).openToolWindow(
                         tools[i],
                       ),
                     ),
@@ -104,6 +106,7 @@ class _ToolCard extends StatelessWidget {
       onTap: onTap,
       expand: true,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(

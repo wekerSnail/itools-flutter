@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -7,10 +8,9 @@ import 'core/system/app_tray_service.dart';
 import 'core/system/single_instance_manager.dart';
 import 'core/system/window_manager_service.dart';
 import 'core/tools/tool_registry.dart';
-import 'features/hotkey_settings/application/hotkey_service.dart';
 import 'features/hotkey_settings/data/hotkey_action_registry.dart';
 import 'features/hotkey_settings/domain/hotkey_action_descriptor.dart';
-import 'features/scheduler/application/scheduler_service.dart';
+
 
 void _registerBuiltinHotkeyActions() {
   final registry = HotkeyActionRegistry.instance
@@ -70,7 +70,7 @@ Future<void> main(List<String> args) async {
 
     await windowManager.waitUntilReadyToShow(windowOptions);
     await windowManager.setAlignment(Alignment.center);
-    runApp(ToolboxApp(toolId: toolId));
+    runApp(ProviderScope(child: ToolboxApp(toolId: toolId)));
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await windowManager.show();
@@ -112,26 +112,8 @@ Future<void> main(List<String> args) async {
       debugPrint('[Main] Tray initialization failed: $e');
       debugPrint('[Main] Stack: $st');
     }
-
-    debugPrint('[Main] Initializing scheduler service...');
-    try {
-      await SchedulerService.instance.initialize();
-      debugPrint('[Main] Scheduler service initialized successfully');
-    } catch (e, st) {
-      debugPrint('[Main] Scheduler initialization failed: $e');
-      debugPrint('[Main] Stack: $st');
-    }
-
-    debugPrint('[Main] Initializing hotkey service...');
-    try {
-      await HotkeyService.instance.initialize();
-      debugPrint('[Main] Hotkey service initialized successfully');
-    } catch (e, st) {
-      debugPrint('[Main] Hotkey initialization failed: $e');
-      debugPrint('[Main] Stack: $st');
-    }
   });
 
   debugPrint('[Main] Running app');
-  runApp(const ToolboxApp());
+  runApp(const ProviderScope(child: ToolboxApp()));
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/json.dart';
 import 'package:re_highlight/styles/atom-one-dark.dart';
@@ -59,7 +59,6 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final shad = ShadTheme.of(context);
 
     return CodeEditor(
@@ -69,11 +68,11 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
         fontSize: 13,
         fontFamily: 'Consolas',
         fontHeight: 1.5,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0x00000000),
         textColor: shad.colorScheme.foreground,
-        cursorColor: theme.colorScheme.primary,
-        selectionColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-        cursorLineColor: theme.colorScheme.primary.withValues(alpha: 0.06),
+        cursorColor: shad.colorScheme.primary,
+        selectionColor: shad.colorScheme.primary.withValues(alpha: 0.2),
+        cursorLineColor: shad.colorScheme.primary.withValues(alpha: 0.06),
         codeTheme: CodeHighlightTheme(
           languages: {'json': langJson.themeMode},
           theme: atomOneDarkTheme,
@@ -111,7 +110,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
             );
           },
       scrollbarBuilder: (context, child, details) {
-        return Scrollbar(
+        return RawScrollbar(
           controller: details.controller,
           notificationPredicate: (notification) => true,
           child: child,

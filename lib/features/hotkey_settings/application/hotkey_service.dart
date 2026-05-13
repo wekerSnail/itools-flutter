@@ -3,52 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 
 import '../data/hotkey_action_registry.dart';
-import '../data/hotkey_store.dart';
 import '../domain/hotkey_config.dart';
 
 class HotkeyService {
   HotkeyService._();
 
-  static final HotkeyService instance = HotkeyService._();
-
-  final HotkeyStore _store = HotkeyStore();
-  final List<HotkeyConfig> _configs = [];
-  bool _initialized = false;
-
-  List<HotkeyConfig> get configs => List.unmodifiable(_configs);
-
-  Future<void> initialize() async {
-    if (_initialized) {
-      debugPrint('[HotkeyService] Already initialized, skipping');
-      return;
-    }
-
-    debugPrint('[HotkeyService] Initializing...');
-    await _loadConfigs();
-    await _registerAllHotkeys();
-    _initialized = true;
-    debugPrint('[HotkeyService] Initialized with ${_configs.length} configs');
-  }
-
-  Future<void> _loadConfigs() async {
-    try {
-      final loaded = await _store.loadConfigs();
-      _configs
-        ..clear()
-        ..addAll(loaded);
-      debugPrint('[HotkeyService] Loaded ${_configs.length} configs');
-    } catch (e) {
-      debugPrint('[HotkeyService] Failed to load configs: $e');
-    }
-  }
-
-  Future<void> _registerAllHotkeys() async {
+  static Future<void> registerAllHotkeys(
+    List<HotkeyConfig> configs,
+    HotkeyActionRegistry registry,
+  ) async {
     await hotKeyManager.unregisterAll();
 
-    for (final config in _configs) {
+    for (final config in configs) {
       if (!config.enabled) continue;
 
-      final action = HotkeyActionRegistry.instance.findById(config.actionId);
+      final action = registry.findById(config.actionId);
       if (action == null) {
         debugPrint('[HotkeyService] Action not found: ${config.actionId}');
         continue;
@@ -58,7 +27,7 @@ class HotkeyService {
     }
   }
 
-  Future<void> _registerHotkey(
+  static Future<void> _registerHotkey(
     HotkeyConfig config,
     VoidCallback onTrigger,
   ) async {
@@ -81,7 +50,7 @@ class HotkeyService {
     }
   }
 
-  PhysicalKeyboardKey _parsePhysicalKey(String key) {
+  static PhysicalKeyboardKey _parsePhysicalKey(String key) {
     final upperKey = key.toUpperCase();
 
     // Function keys
@@ -167,7 +136,7 @@ class HotkeyService {
     }
   }
 
-  HotKeyModifier _parseModifier(String modifier) {
+  static HotKeyModifier _parseModifier(String modifier) {
     switch (modifier.toLowerCase()) {
       case 'ctrl':
         return HotKeyModifier.control;
@@ -180,32 +149,5 @@ class HotkeyService {
       default:
         return HotKeyModifier.control;
     }
-  }
-
-  Future<void> updateConfig(HotkeyConfig config) async {
-    final index = _configs.indexWhere((c) => c.actionId == config.actionId);
-    if (index >= 0) {
-      _configs[index] = config;
-    } else {
-      _configs.add(config);
-    }
-
-    await _store.saveConfigs(_configs);
-    await _registerAllHotkeys();
-  }
-
-  Future<void> removeConfig(String actionId) async {
-    _configs.removeWhere((c) => c.actionId == actionId);
-    await _store.saveConfigs(_configs);
-    await _registerAllHotkeys();
-  }
-
-  HotkeyConfig? getConfig(String actionId) {
-    return _configs.where((c) => c.actionId == actionId).firstOrNull;
-  }
-
-  Future<void> reload() async {
-    await _loadConfigs();
-    await _registerAllHotkeys();
   }
 }

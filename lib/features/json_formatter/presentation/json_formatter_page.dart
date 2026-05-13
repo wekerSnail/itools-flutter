@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../domain/json_formatter_service.dart';
 import 'widgets/json_code_editor.dart';
@@ -181,7 +182,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
 
-    return Scaffold(
+    return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
       appBar: const PageHeader(title: 'JSON 格式化', subtitle: '格式化、压缩、转义及智能修复'),
       body: Column(
@@ -259,13 +260,13 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
             Icon(
               _isValid ? LucideIcons.check : LucideIcons.x,
               size: 14,
-              color: _isValid ? Colors.green : shad.colorScheme.destructive,
+              color: _isValid ? const Color(0xFF22C55E) : shad.colorScheme.destructive,
             ),
             const SizedBox(width: Spacing.xs),
             Text(
               _isValid ? 'JSON 有效' : 'JSON 无效',
               style: Typography.caption.copyWith(
-                color: _isValid ? Colors.green : shad.colorScheme.destructive,
+                color: _isValid ? const Color(0xFF22C55E) : shad.colorScheme.destructive,
               ),
             ),
           ] else
@@ -324,7 +325,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         cursor: SystemMouseCursors.resizeColumn,
         child: Container(
           width: 6,
-          color: Colors.transparent,
+          color: const Color(0x00000000),
           child: Center(
             child: Container(
               width: _isDragging ? 3 : 2,
@@ -375,21 +376,22 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
             ),
           ),
           Expanded(
-            child: TextField(
+            child: ShadInput(
               controller: _inputController,
               maxLines: null,
               expands: true,
-              textAlignVertical: TextAlignVertical.top,
               style: Typography.bodySmall.copyWith(
                 fontFamily: 'Consolas',
                 color: shad.colorScheme.foreground,
               ),
-              decoration: const InputDecoration(
-                hintText: '在此粘贴 JSON 内容...',
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.all(Spacing.md),
-                isDense: true,
+              placeholder: Text(
+                '在此粘贴 JSON 内容...',
+                style: Typography.bodySmall.copyWith(
+                  fontFamily: 'Consolas',
+                  color: shad.colorScheme.mutedForeground,
+                ),
               ),
+              decoration: ShadDecoration.none,
             ),
           ),
         ],

@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:itools/core/themes/modern_theme.dart';
@@ -21,7 +22,9 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      ShadApp(theme: ModernTheme.light(), home: const TaskLogsPage()),
+      ProviderScope(
+        child: ShadApp(theme: ModernTheme.light(), home: const TaskLogsPage()),
+      ),
     );
     await tester.pumpAndSettle();
 
