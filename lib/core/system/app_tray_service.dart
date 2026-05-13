@@ -120,7 +120,9 @@ class AppTrayService with TrayListener, WindowListener {
         debugPrint('[Tray] Registry check: $registryValue');
 
         if (registryValue.isEmpty) {
-          debugPrint('[Tray] Registry entry missing, launch at startup may not work');
+          debugPrint(
+            '[Tray] Registry entry missing, launch at startup may not work',
+          );
           return false;
         }
       }
@@ -307,6 +309,9 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> _exitApp() async {
     _quitting = true;
     _trayRecoveryTimer?.cancel();
+    _trayRecoveryTimer = null;
+    trayManager.removeListener(this);
+    windowManager.removeListener(this);
     try {
       _trayIconConfigured = false;
       await trayManager.destroy();
@@ -368,5 +373,7 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> dispose() async {
     _trayRecoveryTimer?.cancel();
     _trayRecoveryTimer = null;
+    trayManager.removeListener(this);
+    windowManager.removeListener(this);
   }
 }

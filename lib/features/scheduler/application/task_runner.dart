@@ -191,15 +191,20 @@ class TaskRunner {
     try {
       final process = await Process.start('cmd', ['/c', cmd], runInShell: true);
 
-      process.stdout
+      final stdoutSub = process.stdout
           .transform(utf8.decoder)
           .listen((line) => _appendLog('[${task.name}] $line'));
-      process.stderr
+      final stderrSub = process.stderr
           .transform(utf8.decoder)
           .listen((line) => _appendLog('[${task.name}][ERR] $line'));
 
-      final code = await process.exitCode;
-      _appendLog('[${DateTime.now()}] 任务 ${task.name} 结束，退出码: $code');
+      try {
+        final code = await process.exitCode;
+        _appendLog('[${DateTime.now()}] 任务 ${task.name} 结束，退出码: $code');
+      } finally {
+        await stdoutSub.cancel();
+        await stderrSub.cancel();
+      }
     } catch (e) {
       _appendLog('[${DateTime.now()}] 任务 ${task.name} 执行失败: $e');
     }
@@ -238,15 +243,20 @@ ${task.script}
         scriptFile.path,
       ], runInShell: true);
 
-      process.stdout
+      final stdoutSub = process.stdout
           .transform(utf8.decoder)
           .listen((line) => _appendLog('[${task.name}][JS] $line'));
-      process.stderr
+      final stderrSub = process.stderr
           .transform(utf8.decoder)
           .listen((line) => _appendLog('[${task.name}][JS][ERR] $line'));
 
-      final code = await process.exitCode;
-      _appendLog('[${DateTime.now()}] JS 任务 ${task.name} 结束，退出码: $code');
+      try {
+        final code = await process.exitCode;
+        _appendLog('[${DateTime.now()}] JS 任务 ${task.name} 结束，退出码: $code');
+      } finally {
+        await stdoutSub.cancel();
+        await stderrSub.cancel();
+      }
     } catch (e) {
       _appendLog('[${DateTime.now()}] JS 任务 ${task.name} 执行失败: $e');
     } finally {

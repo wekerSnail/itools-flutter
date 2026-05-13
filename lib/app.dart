@@ -7,6 +7,8 @@ import 'core/providers/theme_provider.dart';
 import 'core/router/app_navigation.dart';
 import 'core/router/app_router.dart';
 import 'core/router/app_routes.dart';
+import 'core/widgets/window_reveal_container.dart';
+import 'core/widgets/app_hotkey_bootstrap.dart';
 import 'core/tools/tool_registry.dart';
 import 'features/settings/domain/theme_mode.dart';
 
@@ -49,15 +51,18 @@ class _ToolboxAppState extends ConsumerState<ToolboxApp> {
         final themeData = ref
             .read(themeProvider.notifier)
             .getThemeData(state.style, brightness);
+        final toolHome = widget.toolId != null
+            ? ToolRegistry.findById(widget.toolId!)?.builder(context)
+            : null;
 
-        return ShadApp(
+        final app = ShadApp(
           title: widget.toolId != null
               ? (ToolRegistry.findById(widget.toolId!)?.title ?? '工具集')
               : 'Windows 工具集',
           theme: themeData,
           themeMode: _toFlutterThemeMode(state.mode),
           home: widget.toolId != null
-              ? ToolRegistry.findById(widget.toolId!)?.builder(context)
+              ? WindowRevealContainer(child: toolHome ?? const SizedBox())
               : null,
           navigatorKey: widget.toolId == null ? appNavigatorKey : null,
           onGenerateRoute: widget.toolId == null
@@ -65,6 +70,12 @@ class _ToolboxAppState extends ConsumerState<ToolboxApp> {
               : null,
           initialRoute: widget.toolId == null ? AppRoutes.home : null,
         );
+
+        if (widget.toolId != null) {
+          return app;
+        }
+
+        return AppHotkeyBootstrap(child: app);
       },
     );
   }

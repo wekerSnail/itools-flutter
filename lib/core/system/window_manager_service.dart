@@ -41,6 +41,8 @@ class WindowManagerService {
       try {
         final controller = WindowController.fromWindowId(existingId);
         await controller.show();
+        await controller.invokeMethod<void>('play_reveal');
+        await _disposeOtherHiddenWindows(exceptToolId: tool.id);
         return;
       } catch (_) {
         _openWindowIds.remove(tool.id);
@@ -55,9 +57,26 @@ class WindowManagerService {
     debugPrint(
       '[WindowManager] Opened window for ${tool.id}: ${controller.windowId}',
     );
+    // 子窗口通过 waitUntilReadyToShow 回调自行管理显示时机，无需父窗口主动 show
+    await _disposeOtherHiddenWindows(exceptToolId: tool.id);
+  }
 
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-    await controller.show();
+  Future<void> _disposeOtherHiddenWindows({
+    required String exceptToolId,
+  }) async {
+    final entries = List<MapEntry<String, String>>.from(_openWindowIds.entries);
+    for (final entry in entries) {
+      if (entry.key == exceptToolId) {
+        continue;
+      }
+
+      try {
+        final controller = WindowController.fromWindowId(entry.value);
+        await controller.invokeMethod<void>('dispose_if_hidden');
+      } catch (_) {
+        _openWindowIds.remove(entry.key);
+      }
+    }
   }
 
   static String? decodeToolId(String? args) {
