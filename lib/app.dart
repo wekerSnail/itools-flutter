@@ -3,13 +3,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'core/providers/task_runner_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_navigation.dart';
 import 'core/router/app_router.dart';
 import 'core/router/app_routes.dart';
-import 'core/widgets/window_reveal_container.dart';
-import 'core/widgets/app_hotkey_bootstrap.dart';
 import 'core/tools/tool_registry.dart';
+import 'core/widgets/app_hotkey_bootstrap.dart';
+import 'core/widgets/window_reveal_container.dart';
 import 'features/settings/domain/theme_mode.dart';
 
 ThemeMode _toFlutterThemeMode(AppThemeMode mode) {
@@ -36,6 +37,11 @@ class _ToolboxAppState extends ConsumerState<ToolboxApp> {
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
+
+    // Bootstrap scheduler in the main process and in the scheduler child window
+    if (widget.toolId == null || widget.toolId == 'scheduler') {
+      ref.watch(schedulerBootstrapProvider);
+    }
 
     return themeState.when(
       loading: () => const Directionality(

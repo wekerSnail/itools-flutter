@@ -24,10 +24,16 @@ class TaskRunner {
   Timer? _saveLogsDebounceTimer;
   Timer? _timer;
 
-  void start({required List<ScheduledTask> Function() tasksProvider}) {
-    _ensureLogsLoaded();
+  Future<void> start({
+    required List<ScheduledTask> Function() tasksProvider,
+  }) async {
+    await _ensureLogsLoaded();
 
     _timer ??= Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (!_logsLoaded) {
+        return;
+      }
+
       final now = DateTime.now();
       final tasks = tasksProvider();
       for (final task in tasks) {
