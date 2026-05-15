@@ -119,6 +119,11 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           _inputController.text = result;
           _isValid = _service.isValid(result);
           _errorMessage = _isValid ? null : 'JSON 格式无效';
+        } else if (operation == JsonOperation.format) {
+          _inputController.text = result;
+          _outputController.text = result;
+          _isValid = true;
+          _errorMessage = null;
         } else {
           _outputController.text = result;
         }
@@ -196,7 +201,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
   }
 
-  Future<void> _smartRepair() async {
+  void _smartRepair() {
     final input = _inputController.text;
     if (input.isEmpty) {
       _showToast('请输入 JSON 内容');
@@ -210,10 +215,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
 
     try {
-      final repaired = await Isolate.run(() {
-        final service = JsonFormatterService();
-        return service.smartRepair(input);
-      });
+      final repaired = _service.smartRepair(input);
       if (!mounted) return;
       if (repaired != null) {
         setState(() {
