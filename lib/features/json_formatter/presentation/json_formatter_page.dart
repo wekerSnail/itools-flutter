@@ -3,13 +3,14 @@ import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:flutter/material.dart' hide Typography;
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:re_editor/re_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
+
 import '../domain/json_formatter_service.dart';
 import 'widgets/json_code_editor.dart';
 import 'widgets/json_toolbar.dart';
@@ -25,9 +26,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   final JsonFormatterService _service = JsonFormatterService();
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _outputController = TextEditingController();
-  final FocusNode _inputFocusNode = FocusNode();
-  final ScrollController _inputScrollController = ScrollController();
-  double _charHeight = 18.0;
 
   bool _isValid = true;
   String? _errorMessage;
@@ -36,10 +34,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   double _splitRatio = 0.5;
   bool _isDragging = false;
 
-  bool _showFindBar = false;
-  final TextEditingController _findTextController = TextEditingController();
-  List<int> _matchOffsets = [];
-  int _currentMatch = -1;
+  CodeFindController? _inputFindController;
 
   bool _isProcessing = false;
 
@@ -47,7 +42,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   void initState() {
     super.initState();
     _inputController.addListener(_onInputChanged);
-    _findTextController.addListener(_onFindPatternChanged);
   }
 
   @override
@@ -57,11 +51,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       ..removeListener(_onInputChanged)
       ..dispose();
     _outputController.dispose();
-    _findTextController
-      ..removeListener(_onFindPatternChanged)
-      ..dispose();
-    _inputFocusNode.dispose();
-    _inputScrollController.dispose();
     super.dispose();
   }
 
@@ -85,131 +74,14 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
         });
       }
     });
-
-    if (_showFindBar && _findTextController.text.isNotEmpty) {
-      _runSearch();
-    }
-  }
-
-  void _onFindPatternChanged() {
-    _runSearch();
   }
 
   void _openFindBar() {
-    setState(() {
-      _showFindBar = true;
-    });
-    _findTextController.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: _findTextController.text.length,
-    );
-    _runSearch();
+    _inputFindController?.findMode();
   }
 
   void _closeFindBar() {
-    setState(() {
-      _showFindBar = false;
-      _matchOffsets = [];
-      _currentMatch = -1;
-    });
-    _inputController.selection = const TextSelection.collapsed(offset: -1);
-    _inputFocusNode.requestFocus();
-  }
-
-  void _runSearch() {
-    final pattern = _findTextController.text;
-    final text = _inputController.text;
-
-    if (pattern.isEmpty || text.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _matchOffsets = [];
-          _currentMatch = -1;
-        });
-      }
-      return;
-    }
-
-    final lowerText = text.toLowerCase();
-    final lowerPattern = pattern.toLowerCase();
-    final offsets = <int>[];
-    var startIndex = 0;
-    while (true) {
-      final index = lowerText.indexOf(lowerPattern, startIndex);
-      if (index == -1) break;
-      offsets.add(index);
-      startIndex = index + 1;
-    }
-
-    if (mounted) {
-      setState(() {
-        _matchOffsets = offsets;
-        if (offsets.isEmpty) {
-          _currentMatch = -1;
-        } else if (_currentMatch >= offsets.length) {
-          _currentMatch = 0;
-          _selectMatch(0);
-        } else if (_currentMatch == -1) {
-          _currentMatch = 0;
-          _selectMatch(0);
-        } else {
-          _selectMatch(_currentMatch);
-        }
-      });
-    }
-  }
-
-  void _nextMatch() {
-    if (_matchOffsets.isEmpty) return;
-    final next = (_currentMatch + 1) % _matchOffsets.length;
-    setState(() => _currentMatch = next);
-    _selectMatch(next);
-  }
-
-  void _previousMatch() {
-    if (_matchOffsets.isEmpty) return;
-    final prev =
-        (_currentMatch - 1 + _matchOffsets.length) % _matchOffsets.length;
-    setState(() => _currentMatch = prev);
-    _selectMatch(prev);
-  }
-
-  void _selectMatch(int index) {
-    if (index < 0 || index >= _matchOffsets.length) return;
-    final offset = _matchOffsets[index];
-    final length = _findTextController.text.length;
-    _inputController.selection = TextSelection(
-      baseOffset: offset,
-      extentOffset: offset + length,
-    );
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _autoScrollToMatch(offset);
-    });
-  }
-
-  void _autoScrollToMatch(int charOffset) {
-    if (!_inputScrollController.hasClients) return;
-    final text = _inputController.text;
-    if (charOffset > text.length) return;
-
-    final line = '\n'.allMatches(text.substring(0, charOffset)).length;
-    final matchTop = line * _charHeight;
-    final viewportHeight = _inputScrollController.position.viewportDimension;
-    final currentOffset = _inputScrollController.offset;
-
-    if (matchTop < currentOffset ||
-        matchTop + _charHeight > currentOffset + viewportHeight) {
-      final target =
-          (matchTop - viewportHeight / 2 + _charHeight / 2).clamp(
-        0.0,
-        _inputScrollController.position.maxScrollExtent,
-      );
-      _inputScrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-      );
-    }
+    _inputFindController?.close();
   }
 
   void _showToast(String message) {
@@ -373,10 +245,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
 
     return CustomScaffold(
       backgroundColor: shad.colorScheme.background,
-      appBar: const PageHeader(
-        title: 'JSON 格式化',
-        subtitle: '格式化、压缩、转义及智能修复',
-      ),
+      appBar: const PageHeader(title: 'JSON 格式化', subtitle: '格式化、压缩、转义及智能修复'),
       body: Column(
         children: [
           JsonToolbar(
@@ -388,11 +257,12 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           ),
           const SizedBox(height: Spacing.sm),
           _buildStatusBar(shad),
+
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 Spacing.cardPadding,
-                Spacing.sm,
+                0,
                 Spacing.cardPadding,
                 Spacing.cardPadding,
               ),
@@ -411,10 +281,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SizedBox(
-                        width: leftWidth,
-                        child: _buildInputPanel(shad),
-                      ),
+                      SizedBox(width: leftWidth, child: _buildInputPanel(shad)),
                       _buildDivider(shad),
                       SizedBox(
                         width: rightWidth,
@@ -517,13 +384,11 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       onHorizontalDragStart: (_) => setState(() => _isDragging = true),
       onHorizontalDragUpdate: (details) {
         final renderBox = context.findRenderObject() as RenderBox;
-        final totalWidth =
-            renderBox.size.width - (Spacing.cardPadding * 2);
+        final totalWidth = renderBox.size.width - (Spacing.cardPadding * 2);
         const dividerWidth = 6.0;
         final availableWidth = totalWidth - dividerWidth;
         setState(() {
-          _splitRatio =
-              (_splitRatio + details.delta.dx / availableWidth).clamp(
+          _splitRatio = (_splitRatio + details.delta.dx / availableWidth).clamp(
             0.2,
             0.8,
           );
@@ -602,169 +467,28 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               ],
             ),
           ),
-          if (_showFindBar) _buildFindBar(shad),
           Expanded(
             child: CallbackShortcuts(
               bindings: {
-                const SingleActivator(
-                  LogicalKeyboardKey.keyF,
-                  control: true,
-                ): _openFindBar,
-                const SingleActivator(LogicalKeyboardKey.escape):
-                    _closeFindBar,
+                const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                    _openFindBar,
+                const SingleActivator(LogicalKeyboardKey.escape): _closeFindBar,
               },
-              child: _buildTextField(shad),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField(ShadThemeData shad) {
-    final textStyle = Typography.bodySmall.copyWith(
-      fontFamily: 'Consolas',
-      fontSize: 13,
-      height: 1.4,
-      color: shad.colorScheme.foreground,
-    );
-    _charHeight = (textStyle.fontSize ?? 13) * (textStyle.height ?? 1.4);
-
-    return TextField(
-      controller: _inputController,
-      focusNode: _inputFocusNode,
-      scrollController: _inputScrollController,
-      maxLines: null,
-      expands: true,
-      keyboardType: TextInputType.multiline,
-      style: textStyle,
-      cursorColor: shad.colorScheme.primary,
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.all(12),
-        border: InputBorder.none,
-        hintText: '在此粘贴 JSON 内容...',
-        hintStyle: textStyle.copyWith(
-          color: shad.colorScheme.mutedForeground,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFindBar(ShadThemeData shad) {
-    final matchCount = _matchOffsets.length;
-
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: shad.colorScheme.popover,
-        border: Border(
-          bottom: BorderSide(color: shad.colorScheme.border),
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 200,
-            height: 30,
-            child: KeyboardListener(
-              focusNode: FocusNode(),
-              onKeyEvent: (event) {
-                if (event is KeyDownEvent) {
-                  if (event.logicalKey == LogicalKeyboardKey.enter) {
-                    _nextMatch();
-                  } else if (event.logicalKey ==
-                      LogicalKeyboardKey.escape) {
-                    _closeFindBar();
+              child: JsonCodeEditor(
+                jsonString: _inputController.text,
+                hintText: '在此粘贴 JSON 内容...',
+                onChanged: (text) {
+                  if (text != _inputController.text) {
+                    _inputController.text = text;
                   }
-                }
-              },
-              child: TextField(
-                controller: _findTextController,
-                autofocus: true,
-                style: Typography.bodySmall.copyWith(
-                  fontFamily: 'Consolas',
-                  color: shad.colorScheme.foreground,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  hintText: '搜索...',
-                  hintStyle: Typography.bodySmall.copyWith(
-                    color: shad.colorScheme.mutedForeground,
-                  ),
-                  filled: true,
-                  fillColor: shad.colorScheme.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      BorderRadiusTokens.sm,
-                    ),
-                    borderSide: BorderSide(
-                      color: shad.colorScheme.border,
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      BorderRadiusTokens.sm,
-                    ),
-                    borderSide: BorderSide(
-                      color: shad.colorScheme.primary,
-                    ),
-                  ),
-                ),
+                },
+                onFindControllerReady: (controller) {
+                  _inputFindController = controller;
+                },
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            matchCount > 0 ? '${_currentMatch + 1}/$matchCount' : '无匹配',
-            style: Typography.caption.copyWith(
-              color: shad.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(width: 4),
-          _findBarIconBtn(
-            icon: LucideIcons.chevronUp,
-            onTap: _previousMatch,
-            shad: shad,
-          ),
-          _findBarIconBtn(
-            icon: LucideIcons.chevronDown,
-            onTap: _nextMatch,
-            shad: shad,
-          ),
-          const Spacer(),
-          _findBarIconBtn(
-            icon: LucideIcons.x,
-            onTap: _closeFindBar,
-            shad: shad,
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _findBarIconBtn({
-    required IconData icon,
-    required VoidCallback onTap,
-    required ShadThemeData shad,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(BorderRadiusTokens.sm),
-        ),
-        child: Icon(
-          icon,
-          size: 14,
-          color: shad.colorScheme.mutedForeground,
-        ),
       ),
     );
   }

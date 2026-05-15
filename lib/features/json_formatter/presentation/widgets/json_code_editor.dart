@@ -12,12 +12,14 @@ class JsonCodeEditor extends StatefulWidget {
     this.hintText,
     this.onChanged,
     this.findController,
+    this.onFindControllerReady,
   });
 
   final String jsonString;
   final String? hintText;
   final ValueChanged<String>? onChanged;
   final CodeFindController? findController;
+  final ValueChanged<CodeFindController>? onFindControllerReady;
 
   @override
   State<JsonCodeEditor> createState() => _JsonCodeEditorState();
@@ -34,8 +36,8 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     _controller = CodeLineEditingController.fromText(widget.jsonString);
     _lastExternalText = widget.jsonString;
     _controller.addListener(_onTextChanged);
-    _findController =
-        widget.findController ?? CodeFindController(_controller);
+    _findController = widget.findController ?? CodeFindController(_controller);
+    _notifyFindControllerReady();
   }
 
   @override
@@ -52,6 +54,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
       _findController =
           widget.findController ?? CodeFindController(_controller);
     }
+    _notifyFindControllerReady();
   }
 
   @override
@@ -73,6 +76,10 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     }
   }
 
+  void _notifyFindControllerReady() {
+    widget.onFindControllerReady?.call(_findController);
+  }
+
   @override
   Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
@@ -81,10 +88,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
       controller: _controller,
       findController: _findController,
       findBuilder: (context, controller, readonly) {
-        return _CodeFindBar(
-          controller: controller,
-          readonly: readonly,
-        );
+        return _CodeFindBar(controller: controller, readonly: readonly);
       },
       hint: widget.hintText ?? '结果将显示在此处...',
       style: CodeEditorStyle(
@@ -145,10 +149,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
 }
 
 class _CodeFindBar extends StatelessWidget implements PreferredSizeWidget {
-  const _CodeFindBar({
-    required this.controller,
-    required this.readonly,
-  });
+  const _CodeFindBar({required this.controller, required this.readonly});
 
   final CodeFindController controller;
   final bool readonly;
@@ -177,61 +178,57 @@ class _CodeFindBar extends StatelessWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: shad.colorScheme.popover,
-            border: Border(
-              bottom: BorderSide(color: shad.colorScheme.border),
-            ),
+            border: Border(bottom: BorderSide(color: shad.colorScheme.border)),
           ),
           child: Row(
             children: [
               SizedBox(
                 width: 200,
                 height: 30,
-                child: KeyboardListener(
-                  focusNode: FocusNode(),
-                  onKeyEvent: (event) {
-                    if (event is KeyDownEvent) {
-                      if (event.logicalKey == LogicalKeyboardKey.enter) {
-                        controller.nextMatch();
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.escape) {
-                        controller.close();
-                      }
-                    }
+                child: CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.escape):
+                        controller.close,
                   },
-                  child: TextField(
-                    controller: controller.findInputController,
-                    focusNode: controller.findInputFocusNode,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontFamily: 'Consolas',
-                    ),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      hintText: '搜索...',
-                      hintStyle: TextStyle(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: TextField(
+                      controller: controller.findInputController,
+                      focusNode: controller.findInputFocusNode,
+                      style: const TextStyle(
                         fontSize: 13,
-                        color: shad.colorScheme.mutedForeground,
+                        fontFamily: 'Consolas',
                       ),
-                      filled: true,
-                      fillColor: shad.colorScheme.background,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: BorderSide(
-                          color: shad.colorScheme.border,
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        hintText: '搜索...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: shad.colorScheme.mutedForeground,
+                        ),
+                        filled: true,
+                        fillColor: shad.colorScheme.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide(
+                            color: shad.colorScheme.border,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide(
+                            color: shad.colorScheme.primary,
+                          ),
                         ),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(6),
-                        borderSide: BorderSide(
-                          color: shad.colorScheme.primary,
-                        ),
-                      ),
+                      onChanged: (_) {},
+                      onSubmitted: (_) => controller.nextMatch(),
                     ),
-                    onChanged: (_) {},
                   ),
                 ),
               ),
