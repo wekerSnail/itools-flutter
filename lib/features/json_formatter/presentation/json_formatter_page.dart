@@ -8,6 +8,8 @@ import 'package:re_editor/re_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/system/window_manager_service.dart';
+import '../../../core/tools/tool_registry.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 
@@ -165,22 +167,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
   }
 
-  void _swap() {
-    final output = _outputController.text;
-    if (output.isEmpty) {
-      _showToast('输出内容为空');
-      return;
-    }
-    final valid = _service.isValid(output);
-    setState(() {
-      _inputController.text = output;
-      _outputController.clear();
-      _isValid = valid;
-      _errorMessage = valid ? null : 'JSON 格式无效';
-      _statusMessage = '已交换输入输出';
-    });
-  }
-
   void _copyOutput() {
     final output = _outputController.text;
     if (output.isEmpty) {
@@ -201,6 +187,13 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
   }
 
+  void _openNewWindow() {
+    final tool = ToolRegistry.findById('json_formatter');
+    if (tool != null) {
+      WindowManagerService.instance.openNewToolWindow(tool);
+    }
+  }
+
   void _smartRepair() {
     final input = _inputController.text;
     if (input.isEmpty) {
@@ -211,7 +204,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
 
     setState(() {
       _isProcessing = true;
-      _statusMessage = '智能修复中...';
+      _statusMessage = 'JSON 修复中...';
     });
 
     try {
@@ -222,7 +215,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           _inputController.text = repaired;
           _isValid = true;
           _errorMessage = null;
-          _statusMessage = '智能修复成功';
+          _statusMessage = 'JSON 修复成功';
         });
       } else {
         setState(() {
@@ -253,9 +246,9 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
           JsonToolbar(
             onOperation: _execute,
             onSmartRepair: _smartRepair,
-            onSwap: _swap,
             onCopy: _copyOutput,
             onClear: _clear,
+            onNewWindow: _openNewWindow,
           ),
           const SizedBox(height: Spacing.sm),
           _buildStatusBar(shad),

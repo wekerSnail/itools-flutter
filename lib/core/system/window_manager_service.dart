@@ -10,10 +10,11 @@ class WindowManagerService {
 
   static final WindowManagerService instance = WindowManagerService._();
 
-  final Map<String, String> _openWindowIds = {};
+  final Map<String, List<String>> _openWindowIds = {};
 
   bool isToolWindowOpen(String toolId) {
-    return _openWindowIds.containsKey(toolId);
+    final ids = _openWindowIds[toolId];
+    return ids != null && ids.isNotEmpty;
   }
 
   void _listenForWindowChanges() {
@@ -23,23 +24,24 @@ class WindowManagerService {
         final activeIds = windows.map((w) => w.windowId).toSet();
         final toRemove = <String>[];
         for (final entry in _openWindowIds.entries) {
-          if (!activeIds.contains(entry.value)) {
+          entry.value.removeWhere((id) => !activeIds.contains(id));
+          if (entry.value.isEmpty) {
             toRemove.add(entry.key);
           }
         }
         for (final key in toRemove) {
           _openWindowIds.remove(key);
-          debugPrint('[WindowManager] Window closed: $key');
+          debugPrint('[WindowManager] All windows closed for: $key');
         }
       } catch (_) {}
     });
   }
 
   Future<void> openToolWindow(ToolDescriptor tool) async {
-    if (_openWindowIds.containsKey(tool.id)) {
-      final existingId = _openWindowIds[tool.id]!;
+    final ids = _openWindowIds[tool.id];
+    if (ids != null && ids.isNotEmpty) {
       try {
-        final controller = WindowController.fromWindowId(existingId);
+        final controller = WindowController.fromWindowId(ids.first);
         await controller.show();
         await controller.invokeMethod<void>('play_reveal');
         await _disposeOtherHiddenWindows(exceptToolId: tool.id);
@@ -53,27 +55,45 @@ class WindowManagerService {
       WindowConfiguration(arguments: tool.id),
     );
 
-    _openWindowIds[tool.id] = controller.windowId;
+    _openWindowIds[tool.id] = [controller.windowId];
     debugPrint(
       '[WindowManager] Opened window for ${tool.id}: ${controller.windowId}',
     );
-    // 子窗口通过 waitUntilReadyToShow 回调自行管理显示时机，无需父窗口主动 show
     await _disposeOtherHiddenWindows(exceptToolId: tool.id);
+  }
+
+  Future<void> openNewToolWindow(ToolDescriptor tool) async {
+    final controller = await WindowController.create(
+      WindowConfiguration(arguments: tool.id),
+    );
+
+    _openWindowIds.putIfAbsent(tool.id, () => []).add(controller.windowId);
+    debugPrint(
+      '[WindowManager] Opened new window for ${tool.id}: ${controller.windowId}',
+    );
   }
 
   Future<void> _disposeOtherHiddenWindows({
     required String exceptToolId,
   }) async {
-    final entries = List<MapEntry<String, String>>.from(_openWindowIds.entries);
+    final entries = List<MapEntry<String, List<String>>>.from(
+      _openWindowIds.entries,
+    );
     for (final entry in entries) {
       if (entry.key == exceptToolId) {
         continue;
       }
 
-      try {
-        final controller = WindowController.fromWindowId(entry.value);
-        await controller.invokeMethod<void>('dispose_if_hidden');
-      } catch (_) {
+      for (final windowId in List<String>.from(entry.value)) {
+        try {
+          final controller = WindowController.fromWindowId(windowId);
+          await controller.invokeMethod<void>('dispose_if_hidden');
+        } catch (_) {
+          entry.value.remove(windowId);
+        }
+      }
+
+      if (entry.value.isEmpty) {
         _openWindowIds.remove(entry.key);
       }
     }

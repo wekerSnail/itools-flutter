@@ -16,16 +16,16 @@ class JsonToolbar extends StatelessWidget {
     super.key,
     required this.onOperation,
     required this.onSmartRepair,
-    required this.onSwap,
     required this.onCopy,
     required this.onClear,
+    required this.onNewWindow,
   });
 
   final ValueChanged<JsonOperation> onOperation;
   final VoidCallback onSmartRepair;
-  final VoidCallback onSwap;
   final VoidCallback onCopy;
   final VoidCallback onClear;
+  final VoidCallback onNewWindow;
 
   @override
   Widget build(BuildContext context) {
@@ -61,24 +61,11 @@ class JsonToolbar extends StatelessWidget {
               children: [
                 Icon(LucideIcons.zap, size: 14),
                 SizedBox(width: 4),
-                Text('智能修复'),
+                Text('JSON 修复'),
               ],
             ),
           ),
           const Spacer(),
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onSwap,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.arrowLeftRight, size: 14),
-                SizedBox(width: 4),
-                Text('交换'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
           ShadButton.ghost(
             size: ShadButtonSize.sm,
             onPressed: onCopy,
@@ -101,6 +88,21 @@ class JsonToolbar extends StatelessWidget {
                 Icon(LucideIcons.trash2, size: 14),
                 SizedBox(width: 4),
                 Text('清空'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(width: 1, height: 20, color: shad.colorScheme.border),
+          const SizedBox(width: 6),
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: onNewWindow,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.copyPlus, size: 14),
+                SizedBox(width: 4),
+                Text('新窗口'),
               ],
             ),
           ),
