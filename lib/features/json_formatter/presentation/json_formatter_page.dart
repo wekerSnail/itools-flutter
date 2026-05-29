@@ -243,6 +243,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       appBar: const PageHeader(title: 'JSON 格式化', subtitle: '格式化、压缩、转义及智能修复'),
       body: Column(
         children: [
+          const SizedBox(height: Spacing.xs),
           JsonToolbar(
             onOperation: _execute,
             onSmartRepair: _smartRepair,
@@ -250,8 +251,9 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
             onClear: _clear,
             onNewWindow: _openNewWindow,
           ),
-          const SizedBox(height: Spacing.sm),
+          const SizedBox(height: Spacing.xs),
           _buildStatusBar(shad),
+          const SizedBox(height: Spacing.xs),
 
           Expanded(
             child: Padding(
@@ -298,7 +300,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     final hasInput = input.isNotEmpty;
 
     return Container(
-      height: 36,
+      height: 28,
       margin: const EdgeInsets.fromLTRB(
         Spacing.cardPadding,
         0,
@@ -439,24 +441,6 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                   '输入',
                   style: Typography.label.copyWith(
                     color: shad.colorScheme.foreground,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: _openFindBar,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        BorderRadiusTokens.sm,
-                      ),
-                    ),
-                    child: Icon(
-                      LucideIcons.search,
-                      size: 14,
-                      color: shad.colorScheme.mutedForeground,
-                    ),
                   ),
                 ),
               ],
