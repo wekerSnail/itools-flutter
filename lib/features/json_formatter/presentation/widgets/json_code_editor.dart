@@ -13,6 +13,8 @@ class JsonCodeEditor extends StatefulWidget {
     this.onChanged,
     this.findController,
     this.onFindControllerReady,
+    this.toolbarController,
+    this.lineIndexNotifier,
   });
 
   final String jsonString;
@@ -20,6 +22,8 @@ class JsonCodeEditor extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final CodeFindController? findController;
   final ValueChanged<CodeFindController>? onFindControllerReady;
+  final SelectionToolbarController? toolbarController;
+  final ValueNotifier<int>? lineIndexNotifier;
 
   @override
   State<JsonCodeEditor> createState() => _JsonCodeEditorState();
@@ -35,7 +39,9 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     super.initState();
     _controller = CodeLineEditingController.fromText(widget.jsonString);
     _lastExternalText = widget.jsonString;
-    _controller.addListener(_onTextChanged);
+    _controller
+      ..addListener(_onTextChanged)
+      ..addListener(_onSelectionChanged);
     _findController = widget.findController ?? CodeFindController(_controller);
     _notifyFindControllerReady();
   }
@@ -61,6 +67,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
   void dispose() {
     _controller
       ..removeListener(_onTextChanged)
+      ..removeListener(_onSelectionChanged)
       ..dispose();
     if (widget.findController == null) {
       _findController.dispose();
@@ -76,6 +83,13 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     }
   }
 
+  void _onSelectionChanged() {
+    final lineIndex = _controller.selection.baseIndex;
+    if (lineIndex >= 0) {
+      widget.lineIndexNotifier?.value = lineIndex;
+    }
+  }
+
   void _notifyFindControllerReady() {
     widget.onFindControllerReady?.call(_findController);
   }
@@ -87,6 +101,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     return CodeEditor(
       controller: _controller,
       findController: _findController,
+      toolbarController: widget.toolbarController,
       findBuilder: (context, controller, readonly) {
         return _CodeFindBar(controller: controller, readonly: readonly);
       },

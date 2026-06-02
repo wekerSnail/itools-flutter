@@ -15,6 +15,7 @@ import '../../../core/widgets/page_header.dart';
 
 import '../domain/json_formatter_service.dart';
 import 'widgets/json_code_editor.dart';
+import 'widgets/json_context_menu.dart';
 import 'widgets/json_toolbar.dart';
 
 class JsonFormatterPage extends StatefulWidget {
@@ -28,6 +29,8 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   final JsonFormatterService _service = JsonFormatterService();
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _outputController = TextEditingController();
+  final JsonContextMenuController _outputMenuController =
+      JsonContextMenuController();
 
   bool _isValid = true;
   String? _errorMessage;
@@ -512,6 +515,8 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
               onChanged: (text) {
                 _outputController.text = text;
               },
+              toolbarController: _outputMenuController,
+              lineIndexNotifier: _outputMenuController.lineIndexNotifier,
             ),
           ),
         ],
