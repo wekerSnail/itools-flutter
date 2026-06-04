@@ -23,62 +23,81 @@ class JsonContextMenuController implements SelectionToolbarController {
     final jsonContext = _parseJsonContext(controller, lineIndex);
     final shad = ShadTheme.of(context);
 
-    final items = <PopupMenuEntry<String>>[];
+    final items = <_MenuItemData>[];
 
     if (jsonContext.propertyName != null) {
-      items.add(_buildMenuItem(
+      items.add(const _MenuItemData(
         value: 'key',
         label: '复制属性名',
         icon: LucideIcons.tag,
-        shad: shad,
       ));
     }
 
     if (jsonContext.propertyValue != null) {
-      items.add(_buildMenuItem(
+      items.add(const _MenuItemData(
         value: 'value',
         label: '复制属性值',
         icon: LucideIcons.braces,
-        shad: shad,
       ));
     }
 
     if (jsonContext.propertyName != null && jsonContext.propertyValue != null) {
-      items.add(_buildMenuItem(
+      items.add(const _MenuItemData(
         value: 'pair',
         label: '复制键值对',
         icon: LucideIcons.code,
-        shad: shad,
       ));
     }
 
-    if (items.isNotEmpty) {
-      items.add(PopupMenuDivider(
-        height: 1,
-        color: shad.colorScheme.border,
-      ));
-    }
-
-    items.add(_buildMenuItem(
+    items.add(const _MenuItemData(
       value: 'all',
       label: '复制全部',
       icon: LucideIcons.copy,
-      shad: shad,
     ));
 
-    showMenu<String>(
+    final position = anchors.primaryAnchor;
+
+    showGeneralDialog<String>(
       context: context,
-      position: RelativeRect.fromSize(
-        anchors.primaryAnchor & const Size(200, double.infinity),
-        MediaQuery.of(context).size,
-      ),
-      items: items,
-      color: shad.colorScheme.popover,
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
-        side: BorderSide(color: shad.colorScheme.border),
-      ),
+      barrierDismissible: true,
+      barrierLabel: 'context_menu',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 120),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const SizedBox.shrink();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+
+        return Stack(
+          children: [
+            Positioned(
+              left: position.dx,
+              top: position.dy,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.92, end: 1.0)
+                    .animate(curvedAnimation),
+                alignment: Alignment.topLeft,
+                child: FadeTransition(
+                  opacity: curvedAnimation,
+                  child: _ContextMenuContent(
+                    items: items,
+                    shad: shad,
+                    hasDivider: jsonContext.propertyName != null ||
+                        jsonContext.propertyValue != null,
+                    onSelected: (String value) {
+                      Navigator.of(context).pop(value);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     ).then((value) {
       if (value == null || !context.mounted) return;
 
@@ -109,32 +128,6 @@ class JsonContextMenuController implements SelectionToolbarController {
 
   @override
   void hide(BuildContext context) {}
-
-  PopupMenuItem<String> _buildMenuItem({
-    required String value,
-    required String label,
-    required IconData icon,
-    required ShadThemeData shad,
-  }) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: shad.colorScheme.mutedForeground),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: shad.colorScheme.foreground,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   JsonContext _parseJsonContext(CodeLineEditingController controller, int lineIndex) {
     if (lineIndex < 0) return const JsonContext();
@@ -293,4 +286,121 @@ class JsonContext {
 
   final String? propertyName;
   final String? propertyValue;
+}
+
+class _MenuItemData {
+  const _MenuItemData({
+    required this.value,
+    required this.label,
+    required this.icon,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+}
+
+class _ContextMenuContent extends StatefulWidget {
+  const _ContextMenuContent({
+    required this.items,
+    required this.shad,
+    required this.hasDivider,
+    required this.onSelected,
+  });
+
+  final List<_MenuItemData> items;
+  final ShadThemeData shad;
+  final bool hasDivider;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_ContextMenuContent> createState() => _ContextMenuContentState();
+}
+
+class _ContextMenuContentState extends State<_ContextMenuContent> {
+  int _hoveredIndex = -1;
+
+  @override
+  Widget build(BuildContext context) {
+    final shad = widget.shad;
+    final children = <Widget>[];
+
+    for (int i = 0; i < widget.items.length; i++) {
+      if (widget.hasDivider && i == widget.items.length - 1) {
+        children.add(
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            color: shad.colorScheme.border,
+          ),
+        );
+      }
+
+      final item = widget.items[i];
+      final isHovered = _hoveredIndex == i;
+
+      children.add(
+        MouseRegion(
+          onEnter: (_) => setState(() => _hoveredIndex = i),
+          onExit: (_) => setState(() => _hoveredIndex = -1),
+          child: GestureDetector(
+            onTap: () => widget.onSelected(item.value),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              height: 30,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: isHovered
+                    ? shad.colorScheme.accent
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    item.icon,
+                    size: 13,
+                    color: isHovered
+                        ? shad.colorScheme.accentForeground
+                        : shad.colorScheme.mutedForeground,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isHovered
+                          ? shad.colorScheme.accentForeground
+                          : shad.colorScheme.foreground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: shad.colorScheme.popover,
+        borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
+        border: Border.all(color: shad.colorScheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      ),
+    );
+  }
 }
