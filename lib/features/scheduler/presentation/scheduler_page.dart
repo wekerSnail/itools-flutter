@@ -1,3 +1,4 @@
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -6,6 +7,7 @@ import '../../../core/animations/animation_builders.dart';
 import '../../../core/design_tokens/index.dart';
 import '../../../core/providers/scheduler_provider.dart';
 import '../../../core/providers/task_runner_provider.dart';
+import '../../../core/system/app_runtime.dart';
 import '../../../core/widgets/custom_progress.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/loading_widgets.dart';
@@ -93,7 +95,16 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
     _showToast('开始测试运行：${task.name}');
 
     try {
-      await ref.read(taskRunnerProvider).runNow(task);
+      if (AppRuntime.isChildWindow) {
+        // 子窗口不本地执行：转发给主引擎，让任务执行与日志写入
+        // 收敛到唯一的调度器，避免双引擎并发写 logs.json。
+        final ran = await _invokeMainWindowRunTask(task.id);
+        if (!ran) {
+          throw StateError('任务不存在或已被删除');
+        }
+      } else {
+        await ref.read(taskRunnerProvider).runNow(task);
+      }
       if (!mounted) return;
       _showToast('任务已执行完成：${task.name}');
     } catch (error) {
@@ -103,6 +114,30 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
       if (mounted) {
         setState(() => _runningTaskIds.remove(task.id));
       }
+    }
+  }
+
+  /// 通过 desktop_multi_window 请求主引擎执行任务，返回是否成功。
+  Future<bool> _invokeMainWindowRunTask(String taskId) async {
+    try {
+      final windows = await WindowController.getAll();
+      // 主窗口无启动参数（windowArgument 为空），据此从窗口列表中识别
+      final mainWindow = windows.where((w) => w.arguments.isEmpty).firstOrNull;
+      if (mainWindow == null) {
+        throw StateError('未找到主窗口');
+      }
+      final result = await WindowController.fromWindowId(
+        mainWindow.windowId,
+      ).invokeMethod<bool>('run_task_now', taskId).timeout(
+            const Duration(seconds: 5),
+            // 超时按"已提交"处理：主引擎是常驻的调度器，
+            // 任务大概率已在执行，不能误报"任务不存在"。
+            onTimeout: () => true,
+          );
+      return result ?? false;
+    } on Exception catch (e) {
+      debugPrint('[SchedulerPage] Forward run_task_now failed: $e');
+      return false;
     }
   }
 
@@ -324,7 +359,7 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
                       ? const SizedBox(
                           width: 15,
                           height: 15,
-                          child: CustomCircularProgressIndicator(strokeWidth: 2),
+                          child: CustomCircularProgressIndicator(),
                         )
                       : const Icon(LucideIcons.play, size: 15),
                 ),

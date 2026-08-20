@@ -22,7 +22,20 @@ class FileStore {
   Future<void> writeJson(String relativePath, String content) async {
     final file = File('${await basePath}/$relativePath');
     await file.parent.create(recursive: true);
-    await file.writeAsString(content, flush: true);
+    // 原子写入：先写临时文件再 rename 替换，避免写一半崩溃导致文件损坏。
+    // rename 会替换已存在的目标文件；写入方与监听方（目录 watch）均兼容。
+    final tmpFile = File('${file.path}.tmp');
+    try {
+      await tmpFile.writeAsString(content, flush: true);
+      await tmpFile.rename(file.path);
+    } catch (_) {
+      try {
+        if (await tmpFile.exists()) await tmpFile.delete();
+      } catch (_) {
+        // ignore cleanup errors
+      }
+      rethrow;
+    }
   }
 
   Future<void> delete(String relativePath) async {

@@ -56,7 +56,7 @@ Each feature follows: `domain/` (models), `data/` (persistence), `application/` 
 - **State management**: Riverpod (`flutter_riverpod`). All providers in `lib/core/providers/`. Use `AsyncNotifierProvider` for data that loads from disk, `NotifierProvider` for imperative logic.
 - **Data persistence**: `FileStore` class reads/writes JSON files to `$APPDATA/itools/`. Each feature has its own path (e.g. `scheduler/tasks.json`, `settings/theme.json`).
 - **Multi-window**: Child windows detect `args.first == 'multi_window'`, extract toolId from `args[2]`. Each tool has its own window size defined in `ToolDescriptor`.
-- **Single instance**: Windows FFI via kernel32 `CreateMutexW` + user32 `FindWindowW` in `single_instance_manager.dart`. Not portable.
+- **Single instance**: Handled entirely in native code (`windows/runner/main.cpp`): `CreateMutexW` (Global namespace) + `FindWindowW` matched by window class AND title. Second instance activates the existing window and exits before Flutter starts. No Dart-side duplicate check.
 - **Tray icon**: `assets/tray_icon.ico`. Path resolution differs between dev and release builds.
 - **JSON editor**: `re_editor` package (`CodeLineEditingController`).
 - **Design tokens**: Use `Spacing.*`, `Typography.*`, `BorderRadiusTokens.*`, `Shadows.*` from `lib/core/design_tokens/`. Spacing uses 8px grid (xs=4, sm=8, md=16, lg=24, xl=32, xxl=48).

@@ -31,9 +31,20 @@ class HotkeyService {
     HotkeyConfig config,
     VoidCallback onTrigger,
   ) async {
+    final physicalKey = _parsePhysicalKey(config.key);
+    if (physicalKey == null) {
+      // 无法识别的按键（如小键盘数字、符号键）直接跳过，
+      // 避免静默回退成 A 键导致 UI 显示与实际热键不符。
+      debugPrint(
+        '[HotkeyService] Unsupported key "${config.key}", '
+        'skip registering ${config.actionId}',
+      );
+      return;
+    }
+
     try {
       final hotKey = HotKey(
-        key: _parsePhysicalKey(config.key),
+        key: physicalKey,
         modifiers: config.modifiers.map(_parseModifier).toList(),
       );
 
@@ -50,7 +61,7 @@ class HotkeyService {
     }
   }
 
-  static PhysicalKeyboardKey _parsePhysicalKey(String key) {
+  static PhysicalKeyboardKey? _parsePhysicalKey(String key) {
     final upperKey = key.toUpperCase();
 
     // Function keys
@@ -84,6 +95,7 @@ class HotkeyService {
             return PhysicalKeyboardKey.f12;
         }
       }
+      return null;
     }
 
     // Single character keys
@@ -132,13 +144,14 @@ class HotkeyService {
       case 'ARROWRIGHT':
         return PhysicalKeyboardKey.arrowRight;
       default:
-        return PhysicalKeyboardKey.keyA;
+        return null;
     }
   }
 
   static HotKeyModifier _parseModifier(String modifier) {
     switch (modifier.toLowerCase()) {
       case 'ctrl':
+      case 'control':
         return HotKeyModifier.control;
       case 'shift':
         return HotKeyModifier.shift;

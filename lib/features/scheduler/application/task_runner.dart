@@ -12,6 +12,7 @@ class TaskRunner {
 
   static const String _logsPath = 'scheduler/logs.json';
   static const Duration _logRetentionDuration = Duration(days: 5);
+  static const Duration _defaultProcessTimeout = Duration(seconds: 600);
   final _store = FileStore();
 
   final ValueNotifier<List<String>> logs = ValueNotifier<List<String>>(
@@ -66,6 +67,10 @@ class TaskRunner {
 
   bool _isDue(ScheduledTask task, DateTime now) {
     if (!task.enabled || now.isBefore(task.startAt)) {
+      return false;
+    }
+    // 运行期防御：间隔 < 1 会让周期计算除零，直接跳过该任务。
+    if (task.intervalValue < 1) {
       return false;
     }
 
@@ -205,7 +210,7 @@ class TaskRunner {
           .listen((line) => _appendLog('[${task.name}][ERR] $line'));
 
       try {
-        final code = await process.exitCode;
+        final code = await _waitForExit(process, task);
         _appendLog('[${DateTime.now()}] 任务 ${task.name} 结束，退出码: $code');
       } finally {
         await stdoutSub.cancel();
@@ -257,7 +262,7 @@ ${task.script}
           .listen((line) => _appendLog('[${task.name}][JS][ERR] $line'));
 
       try {
-        final code = await process.exitCode;
+        final code = await _waitForExit(process, task, jsLabel: true);
         _appendLog('[${DateTime.now()}] JS 任务 ${task.name} 结束，退出码: $code');
       } finally {
         await stdoutSub.cancel();
@@ -274,6 +279,45 @@ ${task.script}
       } catch (_) {
         // ignore cleanup errors
       }
+    }
+  }
+
+  /// 等待进程退出，超时后强制结束整个进程树。
+  ///
+  /// 命令通过 cmd / runInShell 派生子进程，直接 kill 只能终止
+  /// 直接子进程，必须用 taskkill /T 整树终止，否则挂死命令会
+  /// 在长期后台运行中不断泄漏进程。
+  Future<int> _waitForExit(
+    Process process,
+    ScheduledTask task, {
+    bool jsLabel = false,
+  }) {
+    final timeout = task.timeoutSeconds == null
+        ? _defaultProcessTimeout
+        : Duration(seconds: task.timeoutSeconds!);
+    final label = jsLabel ? 'JS 任务' : '任务';
+    return process.exitCode.timeout(
+      timeout,
+      onTimeout: () async {
+        await _killProcessTree(process.pid);
+        _appendLog(
+          '[${DateTime.now()}] $label ${task.name} '
+          '超过 ${timeout.inSeconds}s 未结束，已强制终止进程树',
+        );
+        return -1;
+      },
+    );
+  }
+
+  Future<void> _killProcessTree(int pid) async {
+    try {
+      if (Platform.isWindows) {
+        await Process.run('taskkill', ['/T', '/F', '/PID', '$pid']);
+      } else {
+        Process.killPid(pid, ProcessSignal.sigkill);
+      }
+    } catch (_) {
+      // 进程可能已自行退出，忽略终止失败。
     }
   }
 
@@ -297,10 +341,25 @@ ${task.script}
     if (_logsLoaded) {
       return;
     }
+    await _loadLogsFromDisk();
+    _logsLoaded = true;
+    _debouncedSaveLogs();
+  }
 
+  /// 从磁盘重新加载日志并刷新通知。
+  ///
+  /// 子窗口场景：日志由主引擎写入，本引擎的内存副本不会自动更新，
+  /// 日志页监听文件变化后调用此方法刷新展示。
+  Future<void> reloadLogs() async {
+    await _loadLogsFromDisk();
+    _logsLoaded = true;
+  }
+
+  Future<void> _loadLogsFromDisk() async {
     final raw = await _store.readJson(_logsPath);
     if (raw.isEmpty) {
-      _logsLoaded = true;
+      _logEntries.clear();
+      logs.value = <String>[];
       return;
     }
 
@@ -315,13 +374,13 @@ ${task.script}
         );
 
       _pruneExpiredLogs(now: DateTime.now());
+      if (_logEntries.length > 2000) {
+        _logEntries.removeRange(2000, _logEntries.length);
+      }
       logs.value = _logEntries.map((e) => e.message).toList(growable: false);
     } catch (_) {
       _logEntries.clear();
       logs.value = <String>[];
-    } finally {
-      _logsLoaded = true;
-      _debouncedSaveLogs();
     }
   }
 

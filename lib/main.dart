@@ -7,13 +7,16 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'core/providers/scheduler_provider.dart';
+import 'core/providers/task_runner_provider.dart';
+import 'core/system/app_runtime.dart';
 import 'core/system/app_tray_service.dart';
-import 'core/system/single_instance_manager.dart';
 import 'core/system/window_manager_service.dart';
 import 'core/system/window_reveal_controller.dart';
 import 'core/tools/tool_registry.dart';
 import 'features/hotkey_settings/data/hotkey_action_registry.dart';
 import 'features/hotkey_settings/domain/hotkey_action_descriptor.dart';
+import 'features/scheduler/domain/scheduled_task.dart';
 
 void _registerBuiltinHotkeyActions() {
   final registry = HotkeyActionRegistry.instance
@@ -52,6 +55,7 @@ Future<void> main(List<String> args) async {
   debugPrint('[Main] Flutter binding initialized');
 
   if (args.isNotEmpty && args.first == 'multi_window') {
+    AppRuntime.isChildWindow = true;
     final toolId = WindowManagerService.decodeToolId(args.elementAtOrNull(2));
     debugPrint('[Main] Child window launched: toolId=$toolId');
 
@@ -103,16 +107,17 @@ Future<void> main(List<String> args) async {
   // 的流订阅，防止子进程在窗口关闭后仍然存活导致内存泄漏
   _registerBuiltinHotkeyActions();
 
-  final singleInstance = SingleInstanceManager.instance;
-  if (!singleInstance.tryAcquire()) {
-    debugPrint('[Main] Another instance is already running, exiting');
-    return;
-  }
-
-  debugPrint('[Main] Single instance acquired, continuing startup');
+  // 单实例检测在 native 侧（windows/runner/main.cpp）完成：
+  // 第二实例在 wWinMain 就被拦截并激活已有窗口，根本不会执行到这里。
+  // 此处不再做 Dart 侧重复检测（历史上它用的 mutex 名与 native 不一致、
+  // 按标题查找的窗口标题也不对，属于永远放行的死代码）。
 
   await windowManager.ensureInitialized();
   debugPrint('[Main] Window manager initialized');
+
+  // 主引擎持有全局 ProviderContainer，供跨窗口调用的处理器读取状态
+  final container = ProviderContainer();
+  await _registerMainWindowMethodHandler(container);
 
   const windowOptions = WindowOptions(
     size: Size(680, 520),
@@ -121,10 +126,14 @@ Future<void> main(List<String> args) async {
     title: '工具集',
   );
 
+  // 开机自启动（--minimized）时仅托盘驻留，不弹主窗口
+  final startMinimized = args.contains('--minimized');
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     debugPrint('[Main] Window ready to show');
-    await windowManager.show();
-    await windowManager.focus();
+    if (!startMinimized) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
 
     debugPrint('[Main] Window is now visible, initializing tray...');
     try {
@@ -138,7 +147,59 @@ Future<void> main(List<String> args) async {
   });
 
   debugPrint('[Main] Running app');
-  runApp(const ProviderScope(child: ToolboxApp()));
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const ToolboxApp(),
+  ));
+}
+
+/// 注册主窗口的跨窗口方法处理器。
+///
+/// 子窗口（调度器窗口）的“立即运行”通过 desktop_multi_window
+/// 转发到主引擎执行，保证任务执行与日志写入收敛到唯一的调度器。
+Future<void> _registerMainWindowMethodHandler(
+  ProviderContainer container,
+) async {
+  try {
+    final controller = await WindowController.fromCurrentEngine();
+    await controller.setWindowMethodHandler((call) async {
+      if (call.method == 'run_task_now') {
+        return _runTaskNowInMainEngine(
+          container,
+          call.arguments?.toString(),
+        );
+      }
+      return null;
+    });
+  } catch (e) {
+    debugPrint('[Main] Register window method handler failed: $e');
+  }
+}
+
+Future<bool> _runTaskNowInMainEngine(
+  ProviderContainer container,
+  String? taskId,
+) async {
+  if (taskId == null) {
+    return false;
+  }
+  final tasks = container.read(schedulerProvider).value ?? <ScheduledTask>[];
+  final task = tasks.where((t) => t.id == taskId).firstOrNull;
+  if (task == null) {
+    debugPrint('[Main] run_task_now: task not found: $taskId');
+    return false;
+  }
+  // 提交即返回：不 await 任务执行，避免长任务把跨窗口调用挂住
+  // （子窗口按钮转圈到任务结束，甚至引擎切换期永久悬挂）。
+  // 执行状态由子窗口监听 tasks.json / 日志变化自行刷新。
+  unawaited(
+    container.read(taskRunnerProvider.notifier).runNow(task).catchError((
+      Object e,
+    ) {
+      debugPrint('[Main] run_task_now execute failed: $e');
+    }),
+  );
+  return true;
 }
 
 class _ChildWindowLifecycleListener with WindowListener {

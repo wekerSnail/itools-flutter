@@ -1,9 +1,14 @@
-#include <flutter/dart_project.h>
+﻿#include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
 #include "flutter_window.h"
 #include "utils.h"
+
+// 主窗口标题。必须与 Dart 侧 WindowOptions(title: '工具集') 保持一致：
+// FLUTTER_RUNNER_WIN32_WINDOW 是所有 Flutter Windows 应用共用的窗口类名，
+// 单实例检测若只按类名查找，会误激活其他 Flutter 应用或本应用的子窗口。
+constexpr const wchar_t kAppWindowTitle[] = L"工具集";
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command)
@@ -18,7 +23,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (::GetLastError() == ERROR_ALREADY_EXISTS)
   {
     HWND existing_window =
-        ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", nullptr);
+        ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", kAppWindowTitle);
     if (existing_window != nullptr)
     {
       if (::IsIconic(existing_window))
@@ -56,7 +61,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"myrepo", origin, size))
+  if (!window.Create(kAppWindowTitle, origin, size))
   {
     return EXIT_FAILURE;
   }

@@ -97,6 +97,7 @@ class ScheduledTask {
     required this.variables,
     required this.enabled,
     this.script,
+    this.timeoutSeconds,
   });
 
   final String id;
@@ -109,6 +110,9 @@ class ScheduledTask {
   final List<TaskVariable> variables;
   final bool enabled;
   final String? script;
+
+  /// 任务执行超时（秒）。null 表示使用运行器默认超时。
+  final int? timeoutSeconds;
 
   Map<String, dynamic> get runtimeVariables {
     return {for (final v in variables) v.name: v.value};
@@ -125,7 +129,9 @@ class ScheduledTask {
     List<TaskVariable>? variables,
     bool? enabled,
     String? script,
+    int? timeoutSeconds,
     bool clearScript = false,
+    bool clearTimeoutSeconds = false,
   }) {
     return ScheduledTask(
       id: id ?? this.id,
@@ -138,6 +144,9 @@ class ScheduledTask {
       variables: variables ?? this.variables,
       enabled: enabled ?? this.enabled,
       script: clearScript ? null : (script ?? this.script),
+      timeoutSeconds: clearTimeoutSeconds
+          ? null
+          : (timeoutSeconds ?? this.timeoutSeconds),
     );
   }
 
@@ -153,6 +162,7 @@ class ScheduledTask {
       'variables': variables.map((e) => e.toJson()).toList(growable: false),
       'enabled': enabled,
       'script': script,
+      'timeoutSeconds': timeoutSeconds,
     };
   }
 
@@ -179,9 +189,14 @@ class ScheduledTask {
 
     final intervalValueRaw =
         json['intervalValue'] ?? json['intervalMinutes'] ?? 5;
-    final intervalValue = intervalValueRaw is num
+    var intervalValue = intervalValueRaw is num
         ? intervalValueRaw.toInt()
         : int.tryParse(intervalValueRaw.toString()) ?? 5;
+    // 防御脏数据（手改文件 / 旧备份）：间隔必须 >= 1，
+    // 否则调度计算 deltaMs ~/ cycleMs 会除零，拖垮整个调度器。
+    if (intervalValue < 1) {
+      intervalValue = 1;
+    }
 
     return ScheduledTask(
       id: json['id'] as String,
@@ -194,6 +209,7 @@ class ScheduledTask {
       variables: parsedVariables,
       enabled: json['enabled'] as bool? ?? true,
       script: json['script'] as String?,
+      timeoutSeconds: (json['timeoutSeconds'] as num?)?.toInt(),
     );
   }
 }

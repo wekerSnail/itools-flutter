@@ -1,19 +1,71 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/data/file_store.dart';
 import '../../../core/design_tokens/index.dart';
 import '../../../core/providers/task_runner_provider.dart';
+import '../../../core/system/app_runtime.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/loading_widgets.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 
-class TaskLogsPage extends ConsumerWidget {
+class TaskLogsPage extends ConsumerStatefulWidget {
   const TaskLogsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TaskLogsPage> createState() => _TaskLogsPageState();
+}
+
+class _TaskLogsPageState extends ConsumerState<TaskLogsPage> {
+  StreamSubscription<FileSystemEvent>? _logsWatchSub;
+  Timer? _reloadDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // 子窗口中日志由主引擎写入，内存副本不会自动更新，需要监听文件变化。
+    if (AppRuntime.isChildWindow) {
+      _setupChildWindowLogs();
+    }
+  }
+
+  void _setupChildWindowLogs() {
+    unawaited(() async {
+      try {
+        await ref.read(taskRunnerProvider).reloadLogs();
+        final basePath = await FileStore.basePath;
+        _logsWatchSub = Directory('$basePath/scheduler').watch().listen((
+          event,
+        ) {
+          final path = event.path.replaceAll('\\', '/');
+          if (!path.endsWith('scheduler/logs.json')) {
+            return;
+          }
+          _reloadDebounce?.cancel();
+          _reloadDebounce = Timer(const Duration(milliseconds: 300), () {
+            unawaited(ref.read(taskRunnerProvider).reloadLogs());
+          });
+        });
+      } catch (e) {
+        debugPrint('[TaskLogsPage] Watch logs.json failed: $e');
+      }
+    }());
+  }
+
+  @override
+  void dispose() {
+    _logsWatchSub?.cancel();
+    _reloadDebounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final shad = ShadTheme.of(context);
     final logs = ref.watch(logsProvider);
     return CustomScaffold(

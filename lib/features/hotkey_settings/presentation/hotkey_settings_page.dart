@@ -221,6 +221,15 @@ class _HotkeyEditDialogState extends State<_HotkeyEditDialog> {
 
   void _onSave() {
     if (_recordedHotKey == null) {
+      // 未录制新按键：仅切换启用状态时保留原热键配置，
+      // 兑现“关闭后热键配置将保留但不生效”的承诺。
+      final existing = widget.existingConfig;
+      if (existing != null && existing.key.isNotEmpty) {
+        Navigator.of(
+          context,
+        ).pop(existing.copyWith(enabled: _enabled));
+        return;
+      }
       Navigator.of(context).pop(
         HotkeyConfig(
           actionId: widget.action.id,

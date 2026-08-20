@@ -38,8 +38,9 @@ class _ToolboxAppState extends ConsumerState<ToolboxApp> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
 
-    // Bootstrap scheduler in the main process and in the scheduler child window
-    if (widget.toolId == null || widget.toolId == 'scheduler') {
+    // 调度器只在主引擎运行：子窗口编辑任务通过文件同步生效，
+    // 避免两个引擎各自轮询导致任务重复执行、日志互相覆盖。
+    if (widget.toolId == null) {
       ref.watch(schedulerBootstrapProvider);
     }
 

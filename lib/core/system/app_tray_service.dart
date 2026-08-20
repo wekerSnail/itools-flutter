@@ -95,7 +95,13 @@ class AppTrayService with TrayListener, WindowListener {
       debugPrint('[Tray]   - Executable path: $executablePath');
       debugPrint('[Tray]   - Absolute path: $absolutePath');
 
-      launchAtStartup.setup(appName: 'Windows 工具集', appPath: absolutePath);
+      // 开机自启带上 --minimized：启动后仅托盘驻留，不弹出主窗口，
+      // 保证定时任务在后台正常运行且不打扰用户。
+      launchAtStartup.setup(
+        appName: 'Windows 工具集',
+        appPath: absolutePath,
+        args: ['--minimized'],
+      );
 
       _launchAtStartupEnabled = await launchAtStartup.isEnabled();
       debugPrint('[Tray] Launch at startup enabled: $_launchAtStartupEnabled');
@@ -298,10 +304,14 @@ class AppTrayService with TrayListener, WindowListener {
   Future<void> _toggleStartup() async {
     if (_launchAtStartupEnabled) {
       await launchAtStartup.disable();
-      _launchAtStartupEnabled = false;
+      // 校验注册表确实已清除，失败时回滚菜单状态
+      _launchAtStartupEnabled = await launchAtStartup.isEnabled();
+      debugPrint('[Tray] Disable launch at startup verified: !$_launchAtStartupEnabled');
     } else {
       await launchAtStartup.enable();
-      _launchAtStartupEnabled = true;
+      // enable() 恒返回 true，必须读注册表确认实际写入成功
+      _launchAtStartupEnabled = await checkLaunchAtStartupStatus();
+      debugPrint('[Tray] Enable launch at startup verified: $_launchAtStartupEnabled');
     }
     await _refreshContextMenu();
   }

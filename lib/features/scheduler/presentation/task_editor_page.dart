@@ -25,6 +25,7 @@ class TaskEditorPage extends StatefulWidget {
 class _TaskEditorPageState extends State<TaskEditorPage> {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _commandCtrl = TextEditingController();
+  final TextEditingController _timeoutCtrl = TextEditingController();
   late final CodeController _scriptCodeCtrl;
 
   final List<TaskVariable> _variables = <TaskVariable>[];
@@ -54,6 +55,8 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
     _nameCtrl.text = task.name;
     _commandCtrl.text = task.command;
     _scriptCodeCtrl.text = task.script ?? '';
+    _timeoutCtrl.text =
+        task.timeoutSeconds == null ? '' : '${task.timeoutSeconds}';
     _variables.addAll(task.variables.map((e) => e.copyWith()));
     _startAt = task.startAt;
     _intervalValue = task.intervalValue;
@@ -65,6 +68,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
   void dispose() {
     _nameCtrl.dispose();
     _commandCtrl.dispose();
+    _timeoutCtrl.dispose();
     _scriptCodeCtrl.dispose();
     super.dispose();
   }
@@ -659,6 +663,16 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
       return;
     }
 
+    int? timeoutSeconds;
+    final timeoutText = _timeoutCtrl.text.trim();
+    if (timeoutText.isNotEmpty) {
+      timeoutSeconds = int.tryParse(timeoutText);
+      if (timeoutSeconds == null || timeoutSeconds < 1) {
+        _showToast('超时时间必须是正整数（秒）');
+        return;
+      }
+    }
+
     final savedTask = ScheduledTask(
       id:
           widget.initialTask?.id ??
@@ -674,6 +688,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
       script: _scriptCodeCtrl.text.trim().isEmpty
           ? null
           : _scriptCodeCtrl.text.trim(),
+      timeoutSeconds: timeoutSeconds,
     );
 
     Navigator.of(context).pop(savedTask);
@@ -849,6 +864,12 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: Spacing.md),
+          ShadInput(
+            controller: _timeoutCtrl,
+            placeholder: const Text('执行超时（秒），留空默认 600，超时后强制结束进程'),
+            keyboardType: TextInputType.number,
           ),
           const SizedBox(height: Spacing.lg),
         ],

@@ -91,7 +91,6 @@ class _WindowRevealContainerState extends State<WindowRevealContainer>
           opacity: _opacityAnimation.value,
           child: Transform.scale(
             scale: _scaleAnimation.value,
-            alignment: Alignment.center,
             child: child,
           ),
         );

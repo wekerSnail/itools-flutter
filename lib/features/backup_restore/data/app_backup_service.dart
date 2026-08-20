@@ -99,16 +99,31 @@ class AppBackupService {
       throw const FormatException('备份文件缺少数据内容');
     }
 
+    // 白名单校验：备份文件中的 key 可能被篡改（如 ../ 路径穿越），
+    // 只允许写入本应用管理的已知文件，未知条目直接跳过。
+    final importedKeys = <String>[];
+    var skippedCount = 0;
     for (final entry in files.entries) {
+      if (!managedFiles.contains(entry.key)) {
+        skippedCount++;
+        continue;
+      }
       await _store.writeJson(entry.key, entry.value.toString());
+      importedKeys.add(entry.key);
+    }
+
+    if (skippedCount > 0) {
+      stderr.writeln(
+        '[AppBackupService] Skipped $skippedCount unknown file entries',
+      );
     }
 
     return BackupSummary(
       exportedAt:
           DateTime.tryParse(decoded['exportedAt']?.toString() ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      itemCount: files.length,
-      keys: files.keys.toList(growable: false),
+      itemCount: importedKeys.length,
+      keys: importedKeys,
     );
   }
 

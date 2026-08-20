@@ -18,20 +18,25 @@ No CI/CD configured. Run `flutter analyze` before committing.
 
 ```
 lib/
-  main.dart          # entrypoint, multi-window dispatch, tray init
-  app.dart           # ShadApp root, routes
+  main.dart          # entrypoint, multi-window dispatch, tray init, hotkey action registry
+  app.dart           # ShadApp root, routes; scheduler bootstrap only in main engine
   core/
     router/          # app_routes.dart (route constants), app_router.dart (onGenerateRoute)
-    system/          # app_tray_service.dart, single_instance_manager.dart, window_manager_service.dart
+    system/          # app_tray_service.dart, window_manager_service.dart,
+                     #   app_runtime.dart (engine type flag), window_reveal_controller.dart
+    data/            # file_store.dart (file persistence + atomic writes)
+    providers/       # Riverpod providers (scheduler, task_runner, hotkey, tray, theme)
     tools/           # tool_registry.dart (tool list), tool_descriptor.dart (tool model)
-    widgets/         # page_header.dart (standard AppBar replacement)
+    widgets/         # page_header.dart (standard AppBar replacement), surface_cards.dart
+    design_tokens/   # spacing, typography, shadows, border radius constants
+    themes/          # shadcn theme builders
   features/
     home/            # main grid page
     scheduler/       # timed tasks (JS scripts + terminal commands)
     folder_mapping/  # folder shortcuts with collections
     json_formatter/  # JSON editor with re_editor
-    backup_restore/  # export/import SharedPreferences data
-    settings/        # settings menu (backup, autostart, hotkey)
+    backup_restore/  # export/import app data
+    settings/        # settings menu (backup, autostart, hotkey, theme)
     hotkey_settings/ # global hotkey configuration
 ```
 
@@ -41,11 +46,13 @@ Each feature follows: `domain/` (models), `data/` (persistence), `application/` 
 
 - **UI framework**: shadcn_ui (`ShadTheme`, `ShadCard`, `ShadButton`, `ShadToaster`). Material only for `Scaffold`/`Navigator` base.
 - **Page header**: Use `PageHeader` widget (implements `PreferredSizeWidget`), not Material `AppBar`.
-- **Data persistence**: `SharedPreferences` with versioned keys (e.g. `scheduler.tasks.v1`, `folder.mapping.v2`).
-- **Multi-window**: Child windows detect `args.first == 'multi_window'`, extract toolId from `args[2]`. Each tool has its own window size.
-- **Single instance**: Windows FFI via kernel32 `CreateMutexW` + user32 `FindWindowW`. Not portable.
+- **Data persistence**: Settings via `SharedPreferences` with versioned keys. Scheduler tasks/hotkeys/folder mappings via `FileStore` JSON files (temp file + rename atomic writes, per-entry fault tolerance).
+- **Multi-window**: Child windows detect `args.first == 'multi_window'`, extract toolId from `args[2]`. Each tool has its own window size. `AppRuntime.isChildWindow` gates engine-type-specific services.
+- **Scheduler ownership**: The main engine is the ONLY scheduler runner (`app.dart` boots `schedulerBootstrapProvider` only when `toolId == null`). Child windows forward "run now" to the main engine via `run_task_now` window method; main engine watches `scheduler/tasks.json` for cross-window task sync. This keeps timed tasks working after autostart without opening the scheduler module.
+- **Single instance**: Handled entirely in native code (`windows/runner/main.cpp`): `CreateMutexW` (Global namespace) + `FindWindowW` matched by window class AND title (`kAppWindowTitle` must equal Dart `WindowOptions.title`). Second instance activates the existing window and exits before Flutter starts. No Dart-side duplicate check.
 - **Tray icon**: `assets/tray_icon.ico`. Path resolution differs between dev and release builds (multiple candidate paths checked).
-- **Launch at startup**: Uses `launch_at_startup` package. Registry verification via PowerShell. VBS fallback for elevated setup.
+- **Launch at startup**: Uses `launch_at_startup` package with `--minimized` arg (tray-only start, no main window popup). Registry verification via PowerShell. VBS fallback for elevated setup.
+- **Task process kill**: `taskkill /T /F` to terminate the whole process tree; optional `timeoutSeconds` per task.
 - **JSON editor**: `re_editor` package (`CodeLineEditingController`).
 - **JS editor**: `code_text_field` package (`CodeController` with `highlight/languages/javascript`).
 

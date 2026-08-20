@@ -12,8 +12,9 @@ void main() {
 
     expect(controller.sequence, 0);
 
-    controller.playReveal();
-    controller.playReveal();
+    controller
+      ..playReveal()
+      ..playReveal();
 
     expect(controller.sequence, 2);
     expect(notifications, 2);

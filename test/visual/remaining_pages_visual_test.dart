@@ -76,7 +76,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('编辑工作台'), findsOneWidget);
+    expect(find.text('JSON 格式化'), findsOneWidget);
+    expect(find.text('格式化'), findsOneWidget);
+    expect(find.text('JSON 修复'), findsOneWidget);
   });
 }
 
