@@ -106,7 +106,8 @@ class WindowManagerService {
           '[WindowManager] Reopen ${tool.id} window $windowId failed: $e, '
           'falling back to create',
         );
-        _openWindowIds.remove(tool.id);
+        // 只移除失败的 windowId，避免误清同工具其他仍存活的窗口。
+        _removeWindowId(tool.id, windowId);
       }
     }
 
@@ -120,16 +121,33 @@ class WindowManagerService {
         WindowConfiguration(arguments: tool.id),
       );
 
-      _openWindowIds[tool.id] = [controller.windowId];
+      // append 而非覆盖：openNewToolWindow 可能已为同一工具创建多窗口，
+      // 覆盖会丢掉其余 windowId，产生孤儿窗口与缓存不一致。
+      final idsForTool = _openWindowIds.putIfAbsent(
+        tool.id,
+        () => <String>[],
+      );
+      if (!idsForTool.contains(controller.windowId)) {
+        idsForTool.add(controller.windowId);
+      }
       debugPrint(
         '[WindowManager] Opened window for ${tool.id}: ${controller.windowId}',
       );
       await _disposeOtherHiddenWindows(exceptToolId: tool.id);
     } catch (e) {
+      // create 失败时尚未写入新 id，保留该工具已有窗口缓存。
       debugPrint('[WindowManager] Create window for ${tool.id} failed: $e');
-      _openWindowIds.remove(tool.id);
     } finally {
       _creatingTools.remove(tool.id);
+    }
+  }
+
+  void _removeWindowId(String toolId, String windowId) {
+    final ids = _openWindowIds[toolId];
+    if (ids == null) return;
+    ids.remove(windowId);
+    if (ids.isEmpty) {
+      _openWindowIds.remove(toolId);
     }
   }
 

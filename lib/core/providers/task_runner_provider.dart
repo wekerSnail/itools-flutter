@@ -81,32 +81,64 @@ Future<void> _reloadTasks(Ref ref) async {
 }
 
 Future<void> _watchTasksFileForChanges(Ref ref) async {
+  final basePath = await FileStore.basePath;
+  final schedulerDir = Directory('$basePath/scheduler');
+  // 目录可能尚未创建；不创建就 watch 会失败，且此后外部修改永久失步。
+  try {
+    await schedulerDir.create(recursive: true);
+  } catch (e) {
+    debugPrint('[SchedulerBootstrap] Create scheduler dir failed: $e');
+  }
+
   Stream<FileSystemEvent>? events;
   try {
-    final basePath = await FileStore.basePath;
     // 监听目录而非单个文件：原子写入（临时文件 rename）只产生目录事件，
     // 监听文件路径本身会漏掉替换。
-    events = Directory('$basePath/scheduler').watch();
+    events = schedulerDir.watch();
   } catch (e) {
     debugPrint('[SchedulerBootstrap] Watch tasks.json failed: $e');
+    _startTasksPollFallback(ref);
     return;
   }
 
   Timer? syncDebounce;
-  final subscription = events.listen((event) {
-    final path = event.path.replaceAll('\\', '/');
-    if (!path.endsWith('scheduler/tasks.json')) {
-      return;
-    }
-    syncDebounce?.cancel();
-    syncDebounce = Timer(const Duration(milliseconds: 500), () {
-      unawaited(_syncTasksFromDiskIfChanged(ref));
-    });
-  });
+  final subscription = events.listen(
+    (event) {
+      final path = event.path.replaceAll('\\', '/');
+      if (!path.endsWith('scheduler/tasks.json')) {
+        return;
+      }
+      syncDebounce?.cancel();
+      syncDebounce = Timer(const Duration(milliseconds: 500), () {
+        unawaited(_syncTasksFromDiskIfChanged(ref));
+      });
+    },
+    onError: (Object e) {
+      // watch 流上的异步错误同样会失步，转入轮询兜底。
+      debugPrint('[SchedulerBootstrap] Watch stream error: $e');
+      _startTasksPollFallback(ref);
+    },
+  );
 
   ref.onDispose(() {
     subscription.cancel();
     syncDebounce?.cancel();
+  });
+}
+
+Timer? _tasksPollTimer;
+
+void _startTasksPollFallback(Ref ref) {
+  if (_tasksPollTimer != null) {
+    return;
+  }
+  // 轮询兜底：watch 失败时不再静默放弃，保证外部修改仍能同步到内存。
+  _tasksPollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    unawaited(_syncTasksFromDiskIfChanged(ref));
+  });
+  ref.onDispose(() {
+    _tasksPollTimer?.cancel();
+    _tasksPollTimer = null;
   });
 }
 

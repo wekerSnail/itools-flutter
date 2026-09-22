@@ -89,8 +89,17 @@ class AppBackupService {
       throw const FormatException('备份文件格式不正确');
     }
 
-    final schemaVersion = decoded['schemaVersion'];
-    if (schemaVersion is! int || schemaVersion > _schemaVersion) {
+    final rawVersion = decoded['schemaVersion'];
+    final int schemaVersion;
+    if (rawVersion == null) {
+      // 旧备份可能缺省版本字段，按 v1 处理。
+      schemaVersion = 1;
+    } else if (rawVersion is int) {
+      schemaVersion = rawVersion;
+    } else {
+      throw const FormatException('备份文件版本不受支持');
+    }
+    if (schemaVersion > _schemaVersion) {
       throw const FormatException('备份文件版本不受支持');
     }
 
@@ -99,23 +108,35 @@ class AppBackupService {
       throw const FormatException('备份文件缺少数据内容');
     }
 
-    // 白名单校验：备份文件中的 key 可能被篡改（如 ../ 路径穿越），
-    // 只允许写入本应用管理的已知文件，未知条目直接跳过。
-    final importedKeys = <String>[];
+    // 白名单 + 类型校验：备份文件中的 key 可能被篡改（如 ../ 路径穿越），
+    // 只允许写入本应用管理的已知文件。value 必须是导出时的 JSON 字符串，
+    // 非 String 一律跳过（绝不能 toString()，会把 Dart 对象表示写坏目标文件）。
+    // 先收集到内存，全部校验通过后再落盘，避免循环中途失败扩大半套状态。
+    final pendingWrites = <String, String>{};
     var skippedCount = 0;
     for (final entry in files.entries) {
       if (!managedFiles.contains(entry.key)) {
         skippedCount++;
         continue;
       }
-      await _store.writeJson(entry.key, entry.value.toString());
-      importedKeys.add(entry.key);
+      final value = entry.value;
+      if (value is! String) {
+        skippedCount++;
+        continue;
+      }
+      pendingWrites[entry.key] = value;
     }
 
     if (skippedCount > 0) {
       stderr.writeln(
-        '[AppBackupService] Skipped $skippedCount unknown file entries',
+        '[AppBackupService] Skipped $skippedCount unknown or invalid file entries',
       );
+    }
+
+    final importedKeys = <String>[];
+    for (final entry in pendingWrites.entries) {
+      await _store.writeJson(entry.key, entry.value);
+      importedKeys.add(entry.key);
     }
 
     return BackupSummary(

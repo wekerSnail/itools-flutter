@@ -21,6 +21,10 @@ class TaskRunner {
   final Map<String, int> _lastOccurrenceByTaskId = <String, int>{};
   final List<_RunnerLogEntry> _logEntries = <_RunnerLogEntry>[];
 
+  /// 执行中的任务 id：Timer.periodic 不会 await 回调结束，
+  /// 同一任务跨过下一 occurrence 会并发重入，用此集合跳过。
+  final Set<String> _inFlightTaskIds = <String>{};
+
   bool _logsLoaded = false;
   Timer? _saveLogsDebounceTimer;
   Timer? _timer;
@@ -188,12 +192,20 @@ class TaskRunner {
   }
 
   Future<void> _execute(ScheduledTask task) async {
-    _appendLog('[${DateTime.now()}] 开始执行任务 ${task.name}');
-    switch (task.type) {
-      case ScheduledTaskType.terminalCommand:
-        await _executeTerminalCommand(task);
-      case ScheduledTaskType.jsScript:
-        await _executeJsScript(task);
+    if (!_inFlightTaskIds.add(task.id)) {
+      _appendLog('[${DateTime.now()}] 任务 ${task.name} 仍在执行中，跳过本次触发');
+      return;
+    }
+    try {
+      _appendLog('[${DateTime.now()}] 开始执行任务 ${task.name}');
+      switch (task.type) {
+        case ScheduledTaskType.terminalCommand:
+          await _executeTerminalCommand(task);
+        case ScheduledTaskType.jsScript:
+          await _executeJsScript(task);
+      }
+    } finally {
+      _inFlightTaskIds.remove(task.id);
     }
   }
 

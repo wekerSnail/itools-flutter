@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../design_tokens/index.dart';
@@ -38,7 +40,10 @@ class PageTransitionBuilder {
 }
 
 /// Stagger animation for list items
-class StaggeredAnimationBuilder extends StatelessWidget {
+///
+/// [index] 越大入场越晚；[staggerDuration] 指定单次入场动画时长
+/// （步进间隔固定使用 [AnimationDuration.stagger]）。
+class StaggeredAnimationBuilder extends StatefulWidget {
   final int index;
   final Widget child;
   final Duration? staggerDuration;
@@ -51,19 +56,56 @@ class StaggeredAnimationBuilder extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final duration = staggerDuration ?? AnimationDuration.pageTransition;
+  State<StaggeredAnimationBuilder> createState() =>
+      _StaggeredAnimationBuilderState();
+}
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: duration,
-      builder: (context, value, child) {
+class _StaggeredAnimationBuilderState extends State<StaggeredAnimationBuilder>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Timer? _delayTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.staggerDuration ?? AnimationDuration.pageTransition,
+    );
+    final step = AnimationDuration.stagger == Duration.zero
+        ? const Duration(milliseconds: 40)
+        : AnimationDuration.stagger;
+    final delay = step * widget.index;
+    if (delay <= Duration.zero) {
+      _controller.forward();
+    } else {
+      _delayTimer = Timer(delay, () {
+        if (mounted) {
+          _controller.forward();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _delayTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final value = _controller.value;
         return Transform.translate(
           offset: Offset(0, (1 - value) * 20),
           child: Opacity(opacity: value, child: child),
         );
       },
-      child: child,
+      child: widget.child,
     );
   }
 }

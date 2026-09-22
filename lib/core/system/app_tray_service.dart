@@ -17,21 +17,37 @@ class AppTrayService with TrayListener, WindowListener {
   bool _trayIconConfigured = false;
   Timer? _trayRecoveryTimer;
 
-  Future<void> initialize() async {
-    if (_initialized || !Platform.isWindows) {
-      debugPrint(
-        '[Tray] Skipping initialization: _initialized=$_initialized, isWindows=${Platform.isWindows}',
-      );
-      return;
-    }
+  /// 幂等初始化：并发/重入共享同一 Future，避免首次仍在 delay 中时二次调用直接返回。
+  Future<void>? _initializeFuture;
+  bool _listenersAttached = false;
 
-    _initialized = true;
+  Future<void> initialize() {
+    if (!Platform.isWindows) {
+      debugPrint('[Tray] Skipping initialization: isWindows=false');
+      return Future<void>.value();
+    }
+    final pending = _initializeFuture;
+    if (pending != null) {
+      return pending;
+    }
+    if (_initialized) {
+      return Future<void>.value();
+    }
+    final future = _initialize();
+    _initializeFuture = future;
+    return future;
+  }
+
+  Future<void> _initialize() async {
     debugPrint('[Tray] Starting initialization...');
     try {
-      // 必须先添加监听器
-      debugPrint('[Tray] Adding listeners...');
-      trayManager.addListener(this);
-      windowManager.addListener(this);
+      // 必须先添加监听器；失败重试时不得重复挂载，避免双倍回调。
+      if (!_listenersAttached) {
+        debugPrint('[Tray] Adding listeners...');
+        trayManager.addListener(this);
+        windowManager.addListener(this);
+        _listenersAttached = true;
+      }
 
       // 设置窗口不能被关闭（最小化到托盘）
       debugPrint('[Tray] Setting window prevent close...');
@@ -50,11 +66,19 @@ class AppTrayService with TrayListener, WindowListener {
       debugPrint('[Tray] Starting recovery check timer...');
       _startTrayRecoveryCheck();
 
+      _initialized = true;
       debugPrint('[Tray] ✓ Initialization complete!');
     } catch (e) {
       debugPrint('[Tray] ✗ Initialize failed: $e');
       stderr.writeln('[Tray] Initialize failed: $e');
       _initialized = false;
+      // 失败后允许下一次 initialize 重试；摘掉监听，避免重试时叠加回调。
+      if (_listenersAttached) {
+        trayManager.removeListener(this);
+        windowManager.removeListener(this);
+        _listenersAttached = false;
+      }
+      _initializeFuture = null;
     }
   }
 
