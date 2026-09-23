@@ -266,8 +266,46 @@ class JsonFormatterService {
       (ch.codeUnitAt(0) >= 48 && ch.codeUnitAt(0) <= 57); // 0-9
 
   String _removeTrailingCommas(String input) {
-    // Remove commas before } or ]
-    return input.replaceAll(RegExp(r',\s*([}\]])'), r'$1');
+    // String-aware: only drop commas before } or ] outside of string literals.
+    final buffer = StringBuffer();
+    bool inString = false;
+    bool escaped = false;
+    int i = 0;
+    while (i < input.length) {
+      final ch = input[i];
+      if (escaped) {
+        buffer.write(ch);
+        escaped = false;
+        i++;
+        continue;
+      }
+      if (ch == '\\') {
+        buffer.write(ch);
+        escaped = true;
+        i++;
+        continue;
+      }
+      if (ch == '"') {
+        inString = !inString;
+        buffer.write(ch);
+        i++;
+        continue;
+      }
+      if (!inString && ch == ',') {
+        int j = i + 1;
+        while (j < input.length && (input[j] == ' ' || input[j] == '\t' || input[j] == '\n' || input[j] == '\r')) {
+          j++;
+        }
+        if (j < input.length && (input[j] == '}' || input[j] == ']')) {
+          // Drop the comma and keep whitespace/closer as-is.
+          i++;
+          continue;
+        }
+      }
+      buffer.write(ch);
+      i++;
+    }
+    return buffer.toString();
   }
 
   String _balanceBrackets(String input) {

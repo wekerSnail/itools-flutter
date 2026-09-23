@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
 import '../../../core/widgets/custom_scaffold.dart';
+import '../../../core/widgets/icon_container.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../../hotkey_settings/presentation/hotkey_settings_page.dart';
@@ -136,19 +137,7 @@ class _SettingsMenuCard extends StatelessWidget {
       expand: true,
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: shad.colorScheme.secondary.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
-            ),
-            child: Icon(
-              item.icon,
-              size: 18,
-              color: shad.colorScheme.secondaryForeground,
-            ),
-          ),
+          IconContainer(icon: item.icon),
           const SizedBox(width: Spacing.md),
           Expanded(
             child: Column(

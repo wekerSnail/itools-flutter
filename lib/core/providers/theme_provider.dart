@@ -45,17 +45,25 @@ class ThemeNotifier extends AsyncNotifier<ThemeState> {
   }
 
   Future<void> setStyle(AppThemeStyle style) async {
-    state = AsyncData(state.value!.copyWith(style: style));
+    final current = state.valueOrNull;
+    if (current == null) {
+      return;
+    }
+    state = AsyncData(current.copyWith(style: style));
     await _service.save(
       style: style,
-      mode: state.value!.mode,
+      mode: current.mode,
     );
   }
 
   Future<void> setMode(AppThemeMode mode) async {
-    state = AsyncData(state.value!.copyWith(mode: mode));
+    final current = state.valueOrNull;
+    if (current == null) {
+      return;
+    }
+    state = AsyncData(current.copyWith(mode: mode));
     await _service.save(
-      style: state.value!.style,
+      style: current.style,
       mode: mode,
     );
   }

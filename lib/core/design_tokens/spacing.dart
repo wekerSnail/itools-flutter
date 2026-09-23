@@ -26,6 +26,5 @@ class Spacing {
   static const buttonPaddingHorizontal = 16.0;
   static const buttonPaddingVertical = 12.0;
   static const cardPadding = 20.0;
-  static const pageHorizontalPadding = 24.0;
   static const pageVerticalPadding = 24.0;
 }

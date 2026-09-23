@@ -82,13 +82,19 @@ class FolderCollection {
 
   factory FolderCollection.fromJson(Map<String, dynamic> json) {
     final rawItems = (json['items'] as List<dynamic>? ?? <dynamic>[]);
+    final items = <FolderShortcut>[];
+    for (final e in rawItems) {
+      try {
+        items.add(FolderShortcut.fromJson(e as Map<String, dynamic>));
+      } catch (_) {
+        // 单条脏数据跳过，不影响集合内其余快捷方式。
+      }
+    }
     return FolderCollection(
       id: json['id'] as String,
       name: json['name'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      items: rawItems
-          .map((e) => FolderShortcut.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false),
+      items: items,
     );
   }
 }

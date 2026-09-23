@@ -45,11 +45,16 @@ class TaskVariable {
   final TaskVariableType type;
   final dynamic value;
 
-  TaskVariable copyWith({String? name, TaskVariableType? type, dynamic value}) {
+  TaskVariable copyWith({
+    String? name,
+    TaskVariableType? type,
+    Object? value,
+    bool clearValue = false,
+  }) {
     return TaskVariable(
       name: name ?? this.name,
       type: type ?? this.type,
-      value: value ?? this.value,
+      value: clearValue ? null : (value ?? this.value),
     );
   }
 

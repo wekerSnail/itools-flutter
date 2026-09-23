@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Typography;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -7,6 +8,7 @@ import '../../../core/design_tokens/index.dart';
 import '../../../core/providers/hotkey_provider.dart';
 import '../../../core/widgets/custom_progress.dart';
 import '../../../core/widgets/custom_scaffold.dart';
+import '../../../core/widgets/icon_container.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../data/hotkey_action_registry.dart';
@@ -42,13 +44,42 @@ class _HotkeySettingsPageState extends ConsumerState<HotkeySettingsPage> {
 
     if (result == null) return;
 
-    if (result.key.isEmpty) {
+    if (result.key.isEmpty && result.keyId == null) {
       await notifier.removeConfig(action.id);
       _showToast('已清除 ${action.title} 的热键');
-    } else {
-      await notifier.updateConfig(result);
-      _showToast('已保存 ${action.title} 的热键：${result.displayText}');
+      return;
     }
+
+    // 保存前冲突检测：同一组合只允许一个动作。
+    final conflict = notifier.findConflicting(result);
+    if (conflict != null && conflict.actionId != action.id) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (context) => ShadDialog(
+          title: const Text('热键冲突'),
+          description: Text(
+            '${result.displayText} 已被「${conflict.actionId}」占用，是否覆盖？',
+          ),
+          actions: [
+            ShadButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            ShadButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('覆盖'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true) {
+        return;
+      }
+      await notifier.removeConfig(conflict.actionId);
+    }
+
+    await notifier.updateConfig(result);
+    _showToast('已保存 ${action.title} 的热键：${result.displayText}');
   }
 
   @override
@@ -139,19 +170,7 @@ class _HotkeySettingsPageState extends ConsumerState<HotkeySettingsPage> {
       expand: true,
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: shad.colorScheme.secondary.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(BorderRadiusTokens.md),
-            ),
-            child: Icon(
-              action.icon,
-              size: 18,
-              color: shad.colorScheme.secondaryForeground,
-            ),
-          ),
+          IconContainer(icon: action.icon),
           const SizedBox(width: Spacing.md),
           Expanded(
             child: Column(
@@ -252,6 +271,8 @@ class _HotkeyEditDialogState extends State<_HotkeyEditDialog> {
         enabled: _enabled,
         modifiers: modifiers,
         key: _recordedHotKey!.key.keyLabel,
+        // 稳定 id：布局无关，重启后可还原小键盘/符号键。
+        keyId: (_recordedHotKey!.key as PhysicalKeyboardKey).usbHidUsage,
       ),
     );
   }

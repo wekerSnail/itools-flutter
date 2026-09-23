@@ -10,7 +10,7 @@ import '../../../core/providers/task_runner_provider.dart';
 import '../../../core/system/app_runtime.dart';
 import '../../../core/widgets/custom_progress.dart';
 import '../../../core/widgets/custom_scaffold.dart';
-import '../../../core/widgets/loading_widgets.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../domain/scheduled_task.dart';
@@ -98,15 +98,24 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
       if (AppRuntime.isChildWindow) {
         // 子窗口不本地执行：转发给主引擎，让任务执行与日志写入
         // 收敛到唯一的调度器，避免双引擎并发写 logs.json。
-        final ran = await _invokeMainWindowRunTask(task.id);
-        if (!ran) {
-          throw StateError('任务不存在或已被删除');
+        final status = await _invokeMainWindowRunTask(task.id);
+        if (!mounted) return;
+        switch (status) {
+          case _RunSubmitStatus.started:
+            _showToast('任务已提交执行：${task.name}');
+          case _RunSubmitStatus.notFound:
+            _showToast('任务不存在或已被删除');
+          case _RunSubmitStatus.assumedStarted:
+            _showToast('已提交（主引擎响应超时，请查看日志）');
+          case _RunSubmitStatus.failed:
+            _showToast('任务执行失败：无法提交到主引擎');
         }
       } else {
         await ref.read(taskRunnerProvider).runNow(task);
+        if (!mounted) return;
+        // 主窗口本地 await 执行结束，此文案成立。
+        _showToast('任务已执行完成：${task.name}');
       }
-      if (!mounted) return;
-      _showToast('任务已执行完成：${task.name}');
     } catch (error) {
       if (!mounted) return;
       _showToast('任务执行失败：$error');
@@ -117,8 +126,10 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
     }
   }
 
-  /// 通过 desktop_multi_window 请求主引擎执行任务，返回是否成功。
-  Future<bool> _invokeMainWindowRunTask(String taskId) async {
+  /// 通过 desktop_multi_window 请求主引擎执行任务。
+  ///
+  /// 只表示提交结果；长任务不会在此 await 完成。
+  Future<_RunSubmitStatus> _invokeMainWindowRunTask(String taskId) async {
     try {
       final windows = await WindowController.getAll();
       // 主窗口无启动参数（windowArgument 为空），据此从窗口列表中识别
@@ -128,16 +139,21 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
       }
       final result = await WindowController.fromWindowId(
         mainWindow.windowId,
-      ).invokeMethod<bool>('run_task_now', taskId).timeout(
+      ).invokeMethod<String>('run_task_now', taskId).timeout(
             const Duration(seconds: 5),
-            // 超时按"已提交"处理：主引擎是常驻的调度器，
-            // 任务大概率已在执行，不能误报"任务不存在"。
-            onTimeout: () => true,
+            // 超时按"可能已提交"处理：主引擎是常驻的调度器，
+            // 任务大概率已在执行，不能误报"任务不存在"或"已完成"。
+            onTimeout: () => 'assumed_started',
           );
-      return result ?? false;
+      return switch (result) {
+        'started' => _RunSubmitStatus.started,
+        'not_found' => _RunSubmitStatus.notFound,
+        'assumed_started' => _RunSubmitStatus.assumedStarted,
+        _ => _RunSubmitStatus.failed,
+      };
     } on Exception catch (e) {
       debugPrint('[SchedulerPage] Forward run_task_now failed: $e');
-      return false;
+      return _RunSubmitStatus.failed;
     }
   }
 
@@ -389,4 +405,12 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
       ),
     );
   }
+}
+
+/// 跨窗口 run_task_now 的提交结果（不代表任务执行完成）。
+enum _RunSubmitStatus {
+  started,
+  notFound,
+  assumedStarted,
+  failed,
 }

@@ -8,6 +8,7 @@ import '../../../core/providers/window_provider.dart';
 import '../../../core/tools/tool_descriptor.dart';
 import '../../../core/tools/tool_registry.dart';
 import '../../../core/widgets/custom_scaffold.dart';
+import '../../../core/widgets/icon_container.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../../../features/settings/presentation/settings_page.dart';
@@ -109,18 +110,7 @@ class _ToolCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(Spacing.md),
-            decoration: BoxDecoration(
-              color: shad.colorScheme.secondary.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(BorderRadiusTokens.lg),
-            ),
-            child: Icon(
-              tool.icon,
-              size: 28,
-              color: shad.colorScheme.secondaryForeground,
-            ),
-          ),
+          IconContainer(icon: tool.icon),
           const SizedBox(height: Spacing.md),
           Text(
             tool.title,
@@ -134,7 +124,7 @@ class _ToolCard extends StatelessWidget {
           const SizedBox(height: Spacing.xs),
           Text(
             tool.description,
-            style: Typography.labelSmall.copyWith(
+            style: Typography.bodySmall.copyWith(
               color: shad.colorScheme.mutedForeground,
             ),
             textAlign: TextAlign.center,

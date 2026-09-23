@@ -4,10 +4,15 @@ import 'dart:io';
 class FileStore {
   static String? _basePath;
 
+  /// 测试可注入的数据根目录；生产路径仍走 APPDATA。
+  static String? debugBasePath;
+
   /// 按 relativePath 串行化写入，避免并发共用同一 `.tmp` 交错写出混杂内容。
   static final Map<String, Future<void>> _writeChains = <String, Future<void>>{};
 
   static Future<String> get basePath async {
+    final debug = debugBasePath;
+    if (debug != null) return debug;
     if (_basePath != null) return _basePath!;
     final appData = Platform.environment['APPDATA'] ?? '';
     if (appData.isEmpty) {

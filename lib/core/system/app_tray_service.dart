@@ -6,6 +6,8 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'window_manager_service.dart';
+
 class AppTrayService with TrayListener, WindowListener {
   AppTrayService._();
 
@@ -349,6 +351,8 @@ class AppTrayService with TrayListener, WindowListener {
     try {
       _trayIconConfigured = false;
       await trayManager.destroy();
+      // 先销毁工具子窗口，避免主窗口退出后残留子进程/窗口。
+      await WindowManagerService.instance.closeAll();
       await windowManager.setPreventClose(false);
       await windowManager.close();
     } catch (e) {

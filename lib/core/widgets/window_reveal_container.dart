@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../design_tokens/index.dart';
 import '../system/window_reveal_controller.dart';
 
 class WindowRevealContainer extends StatefulWidget {
@@ -31,7 +32,7 @@ class _WindowRevealContainerState extends State<WindowRevealContainer>
     _controller = widget.controller ?? WindowRevealController.instance;
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: AnimationDuration.windowReveal,
     );
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),

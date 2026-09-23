@@ -14,6 +14,7 @@ class HotkeyService {
   ) async {
     await hotKeyManager.unregisterAll();
 
+    final seenSignatures = <String>{};
     for (final config in configs) {
       if (!config.enabled) continue;
 
@@ -23,15 +24,37 @@ class HotkeyService {
         continue;
       }
 
+      // 注册期冲突：后写覆盖先写（与保存期确认框互补）。
+      final signature = config.signature;
+      if (!seenSignatures.add(signature)) {
+        debugPrint(
+          '[HotkeyService] Duplicate hotkey ${config.displayText}, '
+          'skip ${config.actionId}',
+        );
+        continue;
+      }
+
       await _registerHotkey(config, action.onTrigger);
     }
+  }
+
+  /// 将旧配置中的 key 标签迁移为 usbHidUsage（一次性，调用方负责持久化）。
+  static HotkeyConfig migrateKeyId(HotkeyConfig config) {
+    if (config.keyId != null || config.key.isEmpty) {
+      return config;
+    }
+    final physicalKey = parsePhysicalKey(config.key);
+    if (physicalKey == null) {
+      return config;
+    }
+    return config.copyWith(keyId: physicalKey.usbHidUsage);
   }
 
   static Future<void> _registerHotkey(
     HotkeyConfig config,
     VoidCallback onTrigger,
   ) async {
-    final physicalKey = _parsePhysicalKey(config.key);
+    final physicalKey = resolvePhysicalKey(config);
     if (physicalKey == null) {
       // 无法识别的按键（如小键盘数字、符号键）直接跳过，
       // 避免静默回退成 A 键导致 UI 显示与实际热键不符。
@@ -42,11 +65,21 @@ class HotkeyService {
       return;
     }
 
+    final modifiers = <HotKeyModifier>[];
+    for (final name in config.modifiers) {
+      final modifier = _parseModifier(name);
+      if (modifier == null) {
+        debugPrint(
+          '[HotkeyService] Unknown modifier "$name", '
+          'skip registering ${config.actionId}',
+        );
+        return;
+      }
+      modifiers.add(modifier);
+    }
+
     try {
-      final hotKey = HotKey(
-        key: physicalKey,
-        modifiers: config.modifiers.map(_parseModifier).toList(),
-      );
+      final hotKey = HotKey(key: physicalKey, modifiers: modifiers);
 
       await hotKeyManager.register(
         hotKey,
@@ -61,7 +94,16 @@ class HotkeyService {
     }
   }
 
-  static PhysicalKeyboardKey? _parsePhysicalKey(String key) {
+  /// 优先用持久化的 usbHidUsage；旧配置回退 key 标签解析。
+  static PhysicalKeyboardKey? resolvePhysicalKey(HotkeyConfig config) {
+    final keyId = config.keyId;
+    if (keyId != null) {
+      return PhysicalKeyboardKey(keyId);
+    }
+    return parsePhysicalKey(config.key);
+  }
+
+  static PhysicalKeyboardKey? parsePhysicalKey(String key) {
     final upperKey = key.toUpperCase();
 
     // Function keys
@@ -102,11 +144,11 @@ class HotkeyService {
     if (upperKey.length == 1) {
       final code = upperKey.codeUnitAt(0);
       if (code >= 65 && code <= 90) {
-        // A-Z
+        // A-Z → HID usage 0x070004..
         return PhysicalKeyboardKey(code + 0x00070000 - 65 + 4);
       }
       if (code >= 48 && code <= 57) {
-        // 0-9
+        // 0-9 → HID usage 0x07001E..
         return PhysicalKeyboardKey(code + 0x00070000 - 48 + 0x1E);
       }
     }
@@ -148,7 +190,8 @@ class HotkeyService {
     }
   }
 
-  static HotKeyModifier _parseModifier(String modifier) {
+  /// 未知 modifier 返回 null（不再静默回退 control）。
+  static HotKeyModifier? _parseModifier(String modifier) {
     switch (modifier.toLowerCase()) {
       case 'ctrl':
       case 'control':
@@ -160,7 +203,7 @@ class HotkeyService {
       case 'meta':
         return HotKeyModifier.meta;
       default:
-        return HotKeyModifier.control;
+        return null;
     }
   }
 }

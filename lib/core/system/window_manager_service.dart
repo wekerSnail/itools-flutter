@@ -4,10 +4,15 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/foundation.dart';
 
 import '../tools/tool_descriptor.dart';
+import 'app_runtime.dart';
 
 class WindowManagerService {
   WindowManagerService._() {
-    _listenForWindowChanges();
+    // 子窗口进程禁止订阅 onWindowsChanged：不可取消的监听会让
+    // 隐藏后的子引擎无法回收（见 main.dart 对子窗口的约束）。
+    if (!AppRuntime.isChildWindow) {
+      _listenForWindowChanges();
+    }
   }
 
   static final WindowManagerService instance = WindowManagerService._();
@@ -23,6 +28,8 @@ class WindowManagerService {
 
   /// 正在创建窗口的工具集合，防止双击/热键连点时并发创建多个窗口。
   final Set<String> _creatingTools = {};
+
+  StreamSubscription<void>? _windowsChangedSub;
 
   bool isToolWindowOpen(String toolId) {
     final ids = _openWindowIds[toolId];
@@ -65,7 +72,7 @@ class WindowManagerService {
   }
 
   void _listenForWindowChanges() {
-    onWindowsChanged.listen((_) async {
+    _windowsChangedSub = onWindowsChanged.listen((_) async {
       try {
         final windows = await WindowController.getAll();
         final activeIds = windows.map((w) => w.windowId).toSet();
@@ -152,6 +159,13 @@ class WindowManagerService {
   }
 
   Future<void> openNewToolWindow(ToolDescriptor tool) async {
+    if (AppRuntime.isChildWindow) {
+      // 子窗口进程不得初始化/依赖本服务的窗口簿记（避免残留订阅）。
+      debugPrint(
+        '[WindowManager] openNewToolWindow ignored in child window: ${tool.id}',
+      );
+      return;
+    }
     final controller = await WindowController.create(
       WindowConfiguration(arguments: tool.id),
     );
@@ -160,6 +174,31 @@ class WindowManagerService {
     debugPrint(
       '[WindowManager] Opened new window for ${tool.id}: ${controller.windowId}',
     );
+  }
+
+  /// 主窗口退出前销毁全部工具子窗口，并取消事件订阅。
+  Future<void> closeAll() async {
+    final entries = List<MapEntry<String, List<String>>>.from(
+      _openWindowIds.entries,
+    );
+    for (final entry in entries) {
+      for (final windowId in List<String>.from(entry.value)) {
+        try {
+          final controller = WindowController.fromWindowId(windowId);
+          await _safeInvoke<void>(controller, 'force_close');
+        } catch (e) {
+          debugPrint('[WindowManager] closeAll $windowId failed: $e');
+        }
+      }
+      _openWindowIds.remove(entry.key);
+    }
+    await dispose();
+  }
+
+  /// 取消 onWindowsChanged 订阅。可重复调用。
+  Future<void> dispose() async {
+    await _windowsChangedSub?.cancel();
+    _windowsChangedSub = null;
   }
 
   Future<void> _disposeOtherHiddenWindows({

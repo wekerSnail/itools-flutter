@@ -8,6 +8,7 @@ import 'package:re_editor/re_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/system/app_runtime.dart';
 import '../../../core/system/window_manager_service.dart';
 import '../../../core/tools/tool_registry.dart';
 import '../../../core/widgets/custom_scaffold.dart';
@@ -191,13 +192,18 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   }
 
   void _openNewWindow() {
+    // 子窗口内禁止触碰 WindowManagerService（避免残留 onWindowsChanged 订阅）。
+    if (AppRuntime.isChildWindow) {
+      _showToast('请在主窗口打开新实例');
+      return;
+    }
     final tool = ToolRegistry.findById('json_formatter');
     if (tool != null) {
       WindowManagerService.instance.openNewToolWindow(tool);
     }
   }
 
-  void _smartRepair() {
+  Future<void> _smartRepair() async {
     final input = _inputController.text;
     if (input.isEmpty) {
       _showToast('请输入 JSON 内容');
@@ -211,7 +217,9 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
 
     try {
-      final repaired = _service.smartRepair(input);
+      final repaired = await Isolate.run(() {
+        return JsonFormatterService().smartRepair(input);
+      });
       if (!mounted) return;
       if (repaired != null) {
         setState(() {

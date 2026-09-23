@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart' hide Typography;
@@ -8,6 +7,7 @@ import 'package:highlight/languages/javascript.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
+import '../../../core/utils/id_generator.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
@@ -472,8 +472,9 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
           const SizedBox(height: 8),
           Text(
             '支持 string / number / boolean / object。\n'
-            '• 命令任务：使用 {{变量名}} 进行替换\n'
-            '• JS脚本：通过 vars.变量名 访问',
+            '• 命令任务：使用 {{变量名}} 进行替换（值会自动转义，请勿再包引号）\n'
+            '• JS脚本：通过 vars.变量名 访问\n'
+            '• 变量值不支持换行；请勿把值写成 shell 操作符',
             style: Typography.bodySmall.copyWith(
               color: shad.colorScheme.mutedForeground,
             ),
@@ -674,9 +675,7 @@ class _TaskEditorPageState extends State<TaskEditorPage> {
     }
 
     final savedTask = ScheduledTask(
-      id:
-          widget.initialTask?.id ??
-          '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
+      id: widget.initialTask?.id ?? nextEntityId(),
       name: _nameCtrl.text.trim(),
       type: _taskType,
       command: _commandCtrl.text.trim(),

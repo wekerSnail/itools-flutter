@@ -46,10 +46,10 @@ Each feature follows: `domain/` (models), `data/` (persistence), `application/` 
 
 - **UI framework**: shadcn_ui (`ShadTheme`, `ShadCard`, `ShadButton`, `ShadToaster`). Material only for `Scaffold`/`Navigator` base.
 - **Page header**: Use `PageHeader` widget (implements `PreferredSizeWidget`), not Material `AppBar`.
-- **Data persistence**: Settings via `SharedPreferences` with versioned keys. Scheduler tasks/hotkeys/folder mappings via `FileStore` JSON files (temp file + rename atomic writes, per-entry fault tolerance).
+- **Data persistence**: All app data via `FileStore` JSON files (temp file + rename atomic writes, per-entry fault tolerance), including theme settings, scheduler tasks, hotkeys, and folder mappings.
 - **Multi-window**: Child windows detect `args.first == 'multi_window'`, extract toolId from `args[2]`. Each tool has its own window size. `AppRuntime.isChildWindow` gates engine-type-specific services.
 - **Scheduler ownership**: The main engine is the ONLY scheduler runner (`app.dart` boots `schedulerBootstrapProvider` only when `toolId == null`). Child windows forward "run now" to the main engine via `run_task_now` window method; main engine watches `scheduler/tasks.json` for cross-window task sync. This keeps timed tasks working after autostart without opening the scheduler module.
-- **Single instance**: Handled entirely in native code (`windows/runner/main.cpp`): `CreateMutexW` (Global namespace) + `FindWindowW` matched by window class AND title (`kAppWindowTitle` must equal Dart `WindowOptions.title`). Second instance activates the existing window and exits before Flutter starts. No Dart-side duplicate check.
+- **Single instance**: Handled entirely in native code (`windows/runner/main.cpp`): `CreateMutexW` (Global namespace) + `EnumWindows`/`GetPropW` on a custom HWND property (`itools_flutter_main_wnd`). Not tied to window title or the shared Flutter window class. Second instance activates the existing window and exits before Flutter starts. Multi-window child launches skip the check. No Dart-side duplicate check.
 - **Tray icon**: `assets/tray_icon.ico`. Path resolution differs between dev and release builds (multiple candidate paths checked).
 - **Launch at startup**: Uses `launch_at_startup` package with `--minimized` arg (tray-only start, no main window popup). Registry verification via PowerShell. VBS fallback for elevated setup.
 - **Task process kill**: `taskkill /T /F` to terminate the whole process tree; optional `timeoutSeconds` per task.

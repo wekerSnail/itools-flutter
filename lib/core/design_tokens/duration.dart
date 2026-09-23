@@ -19,4 +19,5 @@ class AnimationDuration {
   static const stagger = Duration(
     milliseconds: 50,
   ); // delay between stagger items
+  static const windowReveal = Duration(milliseconds: 180);
 }

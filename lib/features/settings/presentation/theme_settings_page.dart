@@ -4,6 +4,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/design_tokens/index.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/widgets/custom_progress.dart';
+import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/page_header.dart';
 import '../../../core/widgets/surface_cards.dart';
 import '../domain/app_theme_style.dart';
@@ -38,16 +40,16 @@ class ThemeSettingsPage extends ConsumerWidget {
     final themeState = ref.watch(themeProvider);
 
     return themeState.when(
-      loading: () => Scaffold(
+      loading: () => CustomScaffold(
         backgroundColor: shad.colorScheme.background,
         appBar: const PageHeader(
           title: '主题设置',
           subtitle: '选择视觉风格和色调',
           showBack: true,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: CustomCircularProgressIndicator()),
       ),
-      error: (error, _) => Scaffold(
+      error: (error, _) => CustomScaffold(
         backgroundColor: shad.colorScheme.background,
         appBar: const PageHeader(
           title: '主题设置',
@@ -59,7 +61,7 @@ class ThemeSettingsPage extends ConsumerWidget {
       data: (state) {
         final notifier = ref.read(themeProvider.notifier);
 
-        return Scaffold(
+        return CustomScaffold(
           backgroundColor: shad.colorScheme.background,
           appBar: const PageHeader(
             title: '主题设置',

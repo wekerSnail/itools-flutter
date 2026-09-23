@@ -68,11 +68,4 @@ class Typography {
     fontWeight: FontWeight.w400,
     height: 1.5,
   );
-
-  // Button label - 14px, semibold
-  static const buttonLabel = TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    height: 1.4,
-  );
 }

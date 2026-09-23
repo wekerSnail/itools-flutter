@@ -42,7 +42,7 @@ class PageHeader extends StatelessWidget implements PreferredSizeWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(LucideIcons.arrowLeft, size: 15),
-                  SizedBox(width: 4),
+                  SizedBox(width: Spacing.xs),
                   Text('返回'),
                 ],
               ),

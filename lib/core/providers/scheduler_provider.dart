@@ -12,8 +12,10 @@ class SchedulerNotifier extends AsyncNotifier<List<ScheduledTask>> {
   }
 
   Future<void> reload() async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _service.loadTasks());
+    // 保留 previous：加载中 value 不为 null，避免跨窗口 run_task_now
+    // 在 AsyncLoading 时把任务误判为不存在。
+    state = const AsyncLoading<List<ScheduledTask>>().copyWithPrevious(state);
+    state = await AsyncValue.guard(_service.loadTasks);
   }
 
   Future<void> addTask(ScheduledTask task) async {

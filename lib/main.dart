@@ -85,6 +85,8 @@ Future<void> main(List<String> args) async {
     await currentWindow.setWindowMethodHandler((call) async {
       if (call.method == 'dispose_if_hidden') {
         await lifecycleListener.disposeIfHidden();
+      } else if (call.method == 'force_close') {
+        await lifecycleListener.forceClose();
       } else if (call.method == 'play_reveal') {
         await windowManager.focus();
         WindowRevealController.instance.playReveal();
@@ -123,6 +125,7 @@ Future<void> main(List<String> args) async {
     size: Size(680, 520),
     minimumSize: Size(580, 450),
     center: true,
+    // 标题仅展示用；单实例识别已改为 native HWND 属性，不再与此字符串耦合。
     title: '工具集',
   );
 
@@ -176,18 +179,34 @@ Future<void> _registerMainWindowMethodHandler(
   }
 }
 
-Future<bool> _runTaskNowInMainEngine(
+/// run_task_now 跨窗口回执：只表示「是否已提交」，不表示任务已完成。
+///
+/// - `started`：已提交主引擎执行（fire-and-forget）
+/// - `not_found`：任务不存在
+/// - `error`：调度器未就绪或提交前失败
+Future<String> _runTaskNowInMainEngine(
   ProviderContainer container,
   String? taskId,
 ) async {
   if (taskId == null) {
-    return false;
+    return 'error';
   }
-  final tasks = container.read(schedulerProvider).value ?? <ScheduledTask>[];
+
+  // 等 provider ready，避免启动瞬间 AsyncLoading 被误判为任务不存在。
+  List<ScheduledTask> tasks;
+  try {
+    tasks = await container.read(schedulerProvider.future).timeout(
+          const Duration(seconds: 3),
+        );
+  } on Exception catch (e) {
+    debugPrint('[Main] run_task_now scheduler not ready: $e');
+    return 'error';
+  }
+
   final task = tasks.where((t) => t.id == taskId).firstOrNull;
   if (task == null) {
     debugPrint('[Main] run_task_now: task not found: $taskId');
-    return false;
+    return 'not_found';
   }
   // 提交即返回：不 await 任务执行，避免长任务把跨窗口调用挂住
   // （子窗口按钮转圈到任务结束，甚至引擎切换期永久悬挂）。
@@ -199,7 +218,7 @@ Future<bool> _runTaskNowInMainEngine(
       debugPrint('[Main] run_task_now execute failed: $e');
     }),
   );
-  return true;
+  return 'started';
 }
 
 class _ChildWindowLifecycleListener with WindowListener {
@@ -243,6 +262,12 @@ class _ChildWindowLifecycleListener with WindowListener {
       return;
     }
 
+    await forceClose();
+  }
+
+  /// 无条件销毁本子窗口（主窗口退出时调用）。
+  Future<void> forceClose() async {
+    _cancelAutoDispose();
     _allowRealClose = true;
     await windowManager.setPreventClose(false);
     await windowManager.close();

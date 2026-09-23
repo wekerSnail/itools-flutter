@@ -10,7 +10,16 @@ class HotkeyNotifier extends AsyncNotifier<List<HotkeyConfig>> {
 
   @override
   Future<List<HotkeyConfig>> build() async {
-    final configs = await _store.loadConfigs();
+    final loaded = await _store.loadConfigs();
+    final configs = loaded.map(HotkeyService.migrateKeyId).toList();
+    final migrated = configs.any(
+      (c) =>
+          c.keyId != null &&
+          loaded.any((o) => o.actionId == c.actionId && o.keyId == null),
+    );
+    if (migrated) {
+      await _store.saveConfigs(configs);
+    }
     await HotkeyService.registerAllHotkeys(
       configs,
       HotkeyActionRegistry.instance,
@@ -74,6 +83,19 @@ class HotkeyNotifier extends AsyncNotifier<List<HotkeyConfig>> {
   HotkeyConfig? getConfig(String actionId) {
     final current = state.value ?? <HotkeyConfig>[];
     return current.where((c) => c.actionId == actionId).firstOrNull;
+  }
+
+  /// 返回与 [candidate] 热键组合冲突的已启用配置（不含自身）。
+  HotkeyConfig? findConflicting(HotkeyConfig candidate) {
+    final current = state.value ?? <HotkeyConfig>[];
+    for (final config in current) {
+      if (!config.enabled) continue;
+      if (config.actionId == candidate.actionId) continue;
+      if (config.signature == candidate.signature) {
+        return config;
+      }
+    }
+    return null;
   }
 }
 

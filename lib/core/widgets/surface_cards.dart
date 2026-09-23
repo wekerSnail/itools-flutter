@@ -30,7 +30,7 @@ class SurfaceCard extends StatelessWidget {
         color: backgroundColor ?? shad.colorScheme.card,
         border: Border.all(color: borderColor ?? shad.colorScheme.border),
         borderRadius:
-            borderRadius ?? BorderRadius.circular(BorderRadiusTokens.lg),
+            borderRadius ?? BorderRadius.circular(BorderRadiusTokens.card),
         boxShadow: boxShadow ?? Shadows.sm,
       ),
       padding: padding,

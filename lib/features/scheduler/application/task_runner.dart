@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/data/file_store.dart';
 import '../domain/scheduled_task.dart';
+import 'cmd_escape.dart';
 
 class TaskRunner {
   TaskRunner();
@@ -182,13 +183,7 @@ class TaskRunner {
   }
 
   String _applyVariables(String command, Map<String, dynamic> variables) {
-    var result = command;
-    for (final entry in variables.entries) {
-      final value = entry.value;
-      final textValue = value is String ? value : jsonEncode(value);
-      result = result.replaceAll('{{${entry.key}}}', textValue);
-    }
-    return result;
+    return applyCmdVariables(command, variables);
   }
 
   Future<void> _execute(ScheduledTask task) async {
@@ -211,14 +206,27 @@ class TaskRunner {
 
   Future<void> _executeTerminalCommand(ScheduledTask task) async {
     final cmd = _applyVariables(task.command, task.runtimeVariables);
+    // 写入临时 .cmd 再执行：批处理文件中 `%%` 才是真正的 `%` 转义，
+    // 且避免 `cmd /c` + `runInShell: true` 双重 shell 对变量二次解析。
+    final tempDir = await Directory.systemTemp.createTemp('toolbox_cmd_');
+    final scriptFile = File(
+      '${tempDir.path}${Platform.pathSeparator}task_${task.id}.cmd',
+    );
+    await scriptFile.writeAsString(cmd, flush: true);
+
     try {
-      final process = await Process.start('cmd', ['/c', cmd], runInShell: true);
+      final process = await Process.start('cmd', [
+        '/c',
+        scriptFile.path,
+      ]);
 
       final stdoutSub = process.stdout
           .transform(utf8.decoder)
+          .transform(const LineSplitter())
           .listen((line) => _appendLog('[${task.name}] $line'));
       final stderrSub = process.stderr
           .transform(utf8.decoder)
+          .transform(const LineSplitter())
           .listen((line) => _appendLog('[${task.name}][ERR] $line'));
 
       try {
@@ -230,6 +238,26 @@ class TaskRunner {
       }
     } catch (e) {
       _appendLog('[${DateTime.now()}] 任务 ${task.name} 执行失败: $e');
+    } finally {
+      try {
+        if (await scriptFile.exists()) {
+          await scriptFile.delete();
+        }
+        await tempDir.delete();
+      } catch (_) {
+        // ignore cleanup errors
+      }
+    }
+  }
+
+  static bool? _nodeAvailable;
+
+  Future<bool> _detectNode() async {
+    try {
+      final whereNode = await Process.run('where', ['node']);
+      return whereNode.exitCode == 0;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -239,8 +267,8 @@ class TaskRunner {
       return;
     }
 
-    final whereNode = await Process.run('where', ['node'], runInShell: true);
-    if (whereNode.exitCode != 0) {
+    _nodeAvailable ??= await _detectNode();
+    if (_nodeAvailable != true) {
       _appendLog(
         '[${DateTime.now()}] 任务 ${task.name} 执行失败: 未检测到 Node.js，请先安装并配置 PATH',
       );
@@ -262,15 +290,15 @@ ${task.script}
     await scriptFile.writeAsString(wrappedScript, flush: true);
 
     try {
-      final process = await Process.start('node', [
-        scriptFile.path,
-      ], runInShell: true);
+      final process = await Process.start('node', [scriptFile.path]);
 
       final stdoutSub = process.stdout
           .transform(utf8.decoder)
+          .transform(const LineSplitter())
           .listen((line) => _appendLog('[${task.name}][JS] $line'));
       final stderrSub = process.stderr
           .transform(utf8.decoder)
+          .transform(const LineSplitter())
           .listen((line) => _appendLog('[${task.name}][JS][ERR] $line'));
 
       try {
@@ -296,7 +324,7 @@ ${task.script}
 
   /// 等待进程退出，超时后强制结束整个进程树。
   ///
-  /// 命令通过 cmd / runInShell 派生子进程，直接 kill 只能终止
+  /// 命令通过 cmd 派生子进程，直接 kill 只能终止
   /// 直接子进程，必须用 taskkill /T 整树终止，否则挂死命令会
   /// 在长期后台运行中不断泄漏进程。
   Future<int> _waitForExit(
