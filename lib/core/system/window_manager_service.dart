@@ -26,6 +26,17 @@ class WindowManagerService {
 
   final Map<String, List<String>> _openWindowIds = {};
 
+  /// windowId → 同工具内的实例序号（1 起），用于窗口标题区分多开实例。
+  final Map<String, int> _instanceByWindowId = {};
+
+  /// 关闭即销毁的临时窗口 id（子窗口「新窗口」开的实例）。
+  final Set<String> _destroyOnCloseWindowIds = {};
+
+  /// 同工具已占用（含创建中）的实例序号。窗口销毁后释放；
+  /// 隐藏期间保留（隐藏窗口 3 分钟内会被自动销毁回收），
+  /// 因此实例号不会累计增长，也无需跨引擎的隐藏通知。
+  final Map<String, Set<int>> _usedInstancesByTool = {};
+
   /// 正在创建窗口的工具集合，防止双击/热键连点时并发创建多个窗口。
   final Set<String> _creatingTools = {};
 
@@ -42,7 +53,9 @@ class WindowManagerService {
     String method, [
     dynamic arguments,
   ]) {
-    return controller.invokeMethod<T>(method, arguments).timeout(
+    return controller
+        .invokeMethod<T>(method, arguments)
+        .timeout(
           _invokeTimeout,
           onTimeout: () => throw TimeoutException(
             'invoke "$method" on window ${controller.windowId} timed out',
@@ -63,7 +76,12 @@ class WindowManagerService {
       final windows = await WindowController.getAll().timeout(_invokeTimeout);
       final activeIds = windows.map((w) => w.windowId).toSet();
       _openWindowIds
-        ..updateAll((_, ids) => ids.where(activeIds.contains).toList())
+        ..updateAll((toolId, ids) {
+          for (final id in ids.where((id) => !activeIds.contains(id))) {
+            _forgetWindow(toolId, id);
+          }
+          return ids.where(activeIds.contains).toList();
+        })
         ..removeWhere((_, ids) => ids.isEmpty);
     } catch (e) {
       // 查询失败时保留缓存，由后续 show/invoke 的超时兜底。
@@ -71,6 +89,59 @@ class WindowManagerService {
     }
   }
 
+  /// 同工具多开窗口的实例序号：取当前仍占用的最大值 + 1。
+  /// 销毁即释放，全部关掉后再开从 1 起，不会累计历史水位。
+  int _allocateInstanceNumber(String toolId) {
+    final used = _usedInstancesByTool.putIfAbsent(toolId, () => <int>{});
+    var maxInstance = 0;
+    for (final n in used) {
+      if (n > maxInstance) {
+        maxInstance = n;
+      }
+    }
+    final next = maxInstance + 1;
+    used.add(next);
+    return next;
+  }
+
+  void _releaseInstanceNumber(String toolId, int instance) {
+    final used = _usedInstancesByTool[toolId];
+    if (used == null) {
+      return;
+    }
+    used.remove(instance);
+    if (used.isEmpty) {
+      _usedInstancesByTool.remove(toolId);
+    }
+  }
+
+  /// 释放某窗口的实例簿记（临时窗口标记 + 实例号）。
+  /// 供各销毁/失效路径统一调用；`_openWindowIds` 的清理由
+  /// 调用方按各自语义处理（部分路径在遍历中不可变更 map 结构）。
+  void _forgetWindow(String toolId, String windowId) {
+    _destroyOnCloseWindowIds.remove(windowId);
+    final instance = _instanceByWindowId.remove(windowId);
+    if (instance != null) {
+      _releaseInstanceNumber(toolId, instance);
+    }
+  }
+
+  void _trackWindow(
+    String toolId,
+    String windowId,
+    int instance, {
+    bool destroyOnClose = false,
+  }) {
+    _openWindowIds.putIfAbsent(toolId, () => <String>[]).add(windowId);
+    _instanceByWindowId[windowId] = instance;
+    if (destroyOnClose) {
+      _destroyOnCloseWindowIds.add(windowId);
+    } else {
+      _destroyOnCloseWindowIds.remove(windowId);
+    }
+  }
+
+  /// 隐藏窗口重新展示时沿用原实例号（隐藏期间未释放），标题无需变更。
   void _listenForWindowChanges() {
     _windowsChangedSub = onWindowsChanged.listen((_) async {
       try {
@@ -78,6 +149,9 @@ class WindowManagerService {
         final activeIds = windows.map((w) => w.windowId).toSet();
         final toRemove = <String>[];
         for (final entry in _openWindowIds.entries) {
+          for (final id in entry.value.where((id) => !activeIds.contains(id))) {
+            _forgetWindow(entry.key, id);
+          }
           entry.value.removeWhere((id) => !activeIds.contains(id));
           if (entry.value.isEmpty) {
             toRemove.add(entry.key);
@@ -97,7 +171,13 @@ class WindowManagerService {
 
     final ids = _openWindowIds[tool.id];
     if (ids != null && ids.isNotEmpty) {
-      final windowId = ids.first;
+      // 优先唤起主页打开的常驻窗口；仅剩临时实例（新窗口）时也回退
+      // 展示它，避免为主页入口重复开一个同工具窗口。
+      final windowId =
+          ids
+              .where((id) => !_destroyOnCloseWindowIds.contains(id))
+              .firstOrNull ??
+          ids.first;
       try {
         final controller = WindowController.fromWindowId(windowId);
         // show 对已销毁句柄会静默返回成功，play_reveal 才是真正的
@@ -124,22 +204,20 @@ class WindowManagerService {
     }
 
     try {
-      final controller = await WindowController.create(
-        WindowConfiguration(arguments: tool.id),
-      );
-
-      // append 而非覆盖：openNewToolWindow 可能已为同一工具创建多窗口，
-      // 覆盖会丢掉其余 windowId，产生孤儿窗口与缓存不一致。
-      final idsForTool = _openWindowIds.putIfAbsent(
-        tool.id,
-        () => <String>[],
-      );
-      if (!idsForTool.contains(controller.windowId)) {
-        idsForTool.add(controller.windowId);
+      final instance = _allocateInstanceNumber(tool.id);
+      try {
+        final controller = await WindowController.create(
+          WindowConfiguration(arguments: encodeWindowArgs(tool.id, instance)),
+        );
+        _trackWindow(tool.id, controller.windowId, instance);
+        debugPrint(
+          '[WindowManager] Opened window for ${tool.id}: '
+          '${controller.windowId} (#$instance)',
+        );
+      } catch (e) {
+        _releaseInstanceNumber(tool.id, instance);
+        rethrow;
       }
-      debugPrint(
-        '[WindowManager] Opened window for ${tool.id}: ${controller.windowId}',
-      );
       await _disposeOtherHiddenWindows(exceptToolId: tool.id);
     } catch (e) {
       // create 失败时尚未写入新 id，保留该工具已有窗口缓存。
@@ -150,6 +228,7 @@ class WindowManagerService {
   }
 
   void _removeWindowId(String toolId, String windowId) {
+    _forgetWindow(toolId, windowId);
     final ids = _openWindowIds[toolId];
     if (ids == null) return;
     ids.remove(windowId);
@@ -168,14 +247,27 @@ class WindowManagerService {
       }
       return;
     }
-    final controller = await WindowController.create(
-      WindowConfiguration(arguments: tool.id),
-    );
-
-    _openWindowIds.putIfAbsent(tool.id, () => []).add(controller.windowId);
-    debugPrint(
-      '[WindowManager] Opened new window for ${tool.id}: ${controller.windowId}',
-    );
+    final instance = _allocateInstanceNumber(tool.id);
+    try {
+      final controller = await WindowController.create(
+        WindowConfiguration(
+          arguments: encodeWindowArgs(tool.id, instance, destroyOnClose: true),
+        ),
+      );
+      _trackWindow(
+        tool.id,
+        controller.windowId,
+        instance,
+        destroyOnClose: true,
+      );
+      debugPrint(
+        '[WindowManager] Opened new window for ${tool.id}: '
+        '${controller.windowId} (#$instance)',
+      );
+    } catch (e) {
+      _releaseInstanceNumber(tool.id, instance);
+      rethrow;
+    }
   }
 
   /// 子窗口 → 主引擎方法转发。主窗口无启动参数（windowArgument 为空）。
@@ -212,6 +304,7 @@ class WindowManagerService {
         } catch (e) {
           debugPrint('[WindowManager] closeAll $windowId failed: $e');
         }
+        _forgetWindow(entry.key, windowId);
       }
       _openWindowIds.remove(entry.key);
     }
@@ -241,9 +334,8 @@ class WindowManagerService {
           // 超时说明目标引擎销毁中/已死，按失效处理清理缓存。
           await _safeInvoke<void>(controller, 'dispose_if_hidden');
         } catch (e) {
-          debugPrint(
-            '[WindowManager] dispose_if_hidden $windowId failed: $e',
-          );
+          debugPrint('[WindowManager] dispose_if_hidden $windowId failed: $e');
+          _forgetWindow(entry.key, windowId);
           entry.value.remove(windowId);
         }
       }
@@ -254,8 +346,36 @@ class WindowManagerService {
     }
   }
 
+  /// 窗口启动参数：`toolId|instance|hide|close`
+  /// - `hide`：主页打开的常驻窗口，关闭即隐藏（可快速重开）
+  /// - `close`：子窗口「新窗口」开的临时实例，关闭即销毁
+  static String encodeWindowArgs(
+    String toolId,
+    int instance, {
+    bool destroyOnClose = false,
+  }) => '$toolId|$instance|${destroyOnClose ? 'close' : 'hide'}';
+
   static String? decodeToolId(String? args) {
     if (args == null || args.isEmpty) return null;
-    return args;
+    return args.split('|').first;
   }
+
+  /// 窗口实例序号（1 起）；旧格式参数无后缀时视为 1。
+  static int decodeInstanceNumber(String? args) {
+    if (args == null || args.isEmpty) return 1;
+    final parts = args.split('|');
+    if (parts.length < 2) return 1;
+    return int.tryParse(parts[1]) ?? 1;
+  }
+
+  /// 是否为「关闭即销毁」的临时窗口（子窗口新实例）。
+  static bool decodeDestroyOnClose(String? args) {
+    if (args == null || args.isEmpty) return false;
+    final parts = args.split('|');
+    return parts.length >= 3 && parts[2] == 'close';
+  }
+
+  /// 标题后缀：统一追加实例序号（JSON 格式化 1 / 2 / 3），便于多窗口区分。
+  static String formatInstanceTitle(String baseTitle, int instance) =>
+      '$baseTitle $instance';
 }

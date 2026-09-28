@@ -56,13 +56,22 @@ Future<void> main(List<String> args) async {
 
   if (args.isNotEmpty && args.first == 'multi_window') {
     AppRuntime.isChildWindow = true;
-    final toolId = WindowManagerService.decodeToolId(args.elementAtOrNull(2));
-    debugPrint('[Main] Child window launched: toolId=$toolId');
+    final rawArgs = args.elementAtOrNull(2);
+    final toolId = WindowManagerService.decodeToolId(rawArgs);
+    final instance = WindowManagerService.decodeInstanceNumber(rawArgs);
+    final destroyOnClose = WindowManagerService.decodeDestroyOnClose(rawArgs);
+    debugPrint(
+      '[Main] Child window launched: toolId=$toolId #$instance '
+      'destroyOnClose=$destroyOnClose',
+    );
 
     final tool = toolId != null ? ToolRegistry.findById(toolId) : null;
     final windowSize = tool?.windowSize ?? const Size(900, 650);
     final minSize = tool?.minWindowSize ?? const Size(700, 500);
-    final title = tool?.title ?? '工具集';
+    final title = WindowManagerService.formatInstanceTitle(
+      tool?.title ?? '工具集',
+      instance,
+    );
 
     await windowManager.ensureInitialized();
 
@@ -73,12 +82,13 @@ Future<void> main(List<String> args) async {
       title: title,
     );
 
-    final lifecycleListener = _ChildWindowLifecycleListener();
+    final lifecycleListener = _ChildWindowLifecycleListener(
+      destroyOnClose: destroyOnClose,
+    );
 
-    // 子窗口采用“关闭即隐藏 + 空闲超时自动销毁”策略：
-    // - 关闭后短期内重开更丝滑
-    // - 长时间不用会自动释放内存
-    await windowManager.setPreventClose(true);
+    // 主页打开的常驻窗口：关闭即隐藏 + 空闲超时自动销毁（误关可秒开回）。
+    // 子窗口「新窗口」开的临时实例：关闭即销毁，无再入入口。
+    await windowManager.setPreventClose(!destroyOnClose);
     windowManager.addListener(lifecycleListener);
 
     final currentWindow = await WindowController.fromCurrentEngine();
@@ -150,10 +160,9 @@ Future<void> main(List<String> args) async {
   });
 
   debugPrint('[Main] Running app');
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: const ToolboxApp(),
-  ));
+  runApp(
+    UncontrolledProviderScope(container: container, child: const ToolboxApp()),
+  );
 }
 
 /// 注册主窗口的跨窗口方法处理器。
@@ -167,10 +176,7 @@ Future<void> _registerMainWindowMethodHandler(
     final controller = await WindowController.fromCurrentEngine();
     await controller.setWindowMethodHandler((call) async {
       if (call.method == 'run_task_now') {
-        return _runTaskNowInMainEngine(
-          container,
-          call.arguments?.toString(),
-        );
+        return _runTaskNowInMainEngine(container, call.arguments?.toString());
       }
       if (call.method == 'open_new_tool_window') {
         return _openNewToolWindowInMainEngine(call.arguments?.toString());
@@ -218,9 +224,9 @@ Future<String> _runTaskNowInMainEngine(
   // 等 provider ready，避免启动瞬间 AsyncLoading 被误判为任务不存在。
   List<ScheduledTask> tasks;
   try {
-    tasks = await container.read(schedulerProvider.future).timeout(
-          const Duration(seconds: 3),
-        );
+    tasks = await container
+        .read(schedulerProvider.future)
+        .timeout(const Duration(seconds: 3));
   } on Exception catch (e) {
     debugPrint('[Main] run_task_now scheduler not ready: $e');
     return 'error';
@@ -245,6 +251,11 @@ Future<String> _runTaskNowInMainEngine(
 }
 
 class _ChildWindowLifecycleListener with WindowListener {
+  _ChildWindowLifecycleListener({required this.destroyOnClose});
+
+  /// true：临时实例，点 X 直接销毁；false：主页常驻窗口，点 X 隐藏。
+  final bool destroyOnClose;
+
   static const Duration _autoDisposeDelay = Duration(minutes: 3);
 
   Timer? _disposeTimer;
@@ -256,7 +267,16 @@ class _ChildWindowLifecycleListener with WindowListener {
       return;
     }
 
+    if (destroyOnClose) {
+      // preventClose=false 时原生在 WM_CLOSE 发完事件后即直接销毁窗口，
+      // 不会等待本处理器；此调用仅为防御性兜底，正常路径下是冗余的。
+      await forceClose();
+      return;
+    }
+
     await windowManager.hide();
+    // 实例号在隐藏期间保留（由主引擎在窗口销毁时统一释放），
+    // 重新唤起时标题与序号保持不变，无需跨引擎同步。
     _scheduleAutoDispose();
   }
 
