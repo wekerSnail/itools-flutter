@@ -160,10 +160,12 @@ class WindowManagerService {
 
   Future<void> openNewToolWindow(ToolDescriptor tool) async {
     if (AppRuntime.isChildWindow) {
-      // 子窗口进程不得初始化/依赖本服务的窗口簿记（避免残留订阅）。
-      debugPrint(
-        '[WindowManager] openNewToolWindow ignored in child window: ${tool.id}',
-      );
+      // 子窗口不直接簿记窗口（避免残留订阅/孤儿窗口）；转发主引擎创建，
+      // 保证 closeAll 退出清理能覆盖到这些实例。
+      final ok = await _forwardToMainEngine('open_new_tool_window', tool.id);
+      if (!ok) {
+        throw StateError('open_new_tool_window failed in child window');
+      }
       return;
     }
     final controller = await WindowController.create(
@@ -174,6 +176,27 @@ class WindowManagerService {
     debugPrint(
       '[WindowManager] Opened new window for ${tool.id}: ${controller.windowId}',
     );
+  }
+
+  /// 子窗口 → 主引擎方法转发。主窗口无启动参数（windowArgument 为空）。
+  Future<bool> _forwardToMainEngine(String method, Object? arguments) async {
+    try {
+      final windows = await WindowController.getAll().timeout(_invokeTimeout);
+      final mainWindow = windows.where((w) => w.arguments.isEmpty).firstOrNull;
+      if (mainWindow == null) {
+        debugPrint('[WindowManager] Main window not found for $method');
+        return false;
+      }
+      await _safeInvoke<void>(
+        WindowController.fromWindowId(mainWindow.windowId),
+        method,
+        arguments,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[WindowManager] Forward $method failed: $e');
+      return false;
+    }
   }
 
   /// 主窗口退出前销毁全部工具子窗口，并取消事件订阅。

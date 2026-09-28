@@ -172,10 +172,33 @@ Future<void> _registerMainWindowMethodHandler(
           call.arguments?.toString(),
         );
       }
+      if (call.method == 'open_new_tool_window') {
+        return _openNewToolWindowInMainEngine(call.arguments?.toString());
+      }
       return null;
     });
   } catch (e) {
     debugPrint('[Main] Register window method handler failed: $e');
+  }
+}
+
+/// 子窗口请求主引擎新开工具窗口（如 JSON 格式化「新窗口」）。
+///
+/// 在主引擎侧创建并簿记，保证退出时 closeAll 能回收。
+Future<String> _openNewToolWindowInMainEngine(String? toolId) async {
+  if (toolId == null) {
+    return 'not_found';
+  }
+  final tool = ToolRegistry.findById(toolId);
+  if (tool == null) {
+    return 'not_found';
+  }
+  try {
+    await WindowManagerService.instance.openNewToolWindow(tool);
+    return 'ok';
+  } catch (e) {
+    debugPrint('[Main] open_new_tool_window failed: $e');
+    return 'error';
   }
 }
 
