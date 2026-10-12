@@ -32,7 +32,17 @@ class JsonCodeEditor extends StatefulWidget {
 class _JsonCodeEditorState extends State<JsonCodeEditor> {
   late CodeLineEditingController _controller;
   late CodeFindController _findController;
+  late CodeScrollController _scrollController;
   String _lastExternalText = '';
+
+  /// 触底后是否保持贴底。re_editor 用「未显示行数 × 行高」估算总高度，
+  /// 与真实 paragraph 高度有误差，滚到底会被 correctBy 拉回一点。
+  bool _stickToEnd = false;
+
+  /// 横向是否贴在行尾。粘贴/格式化后 re_editor 的高亮 isolate 会异步重建
+  /// 段落，期间 maxScrollExtent 可能变化；若不跟随，行尾会被裁出视口。
+  bool _hStickToEnd = false;
+  double _lastHMax = 0;
 
   @override
   void initState() {
@@ -43,6 +53,9 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
       ..addListener(_onTextChanged)
       ..addListener(_onSelectionChanged);
     _findController = widget.findController ?? CodeFindController(_controller);
+    _scrollController = CodeScrollController();
+    _scrollController.verticalScroller.addListener(_onVerticalScroll);
+    _scrollController.horizontalScroller.addListener(_onHorizontalScroll);
     _notifyFindControllerReady();
   }
 
@@ -65,6 +78,11 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
 
   @override
   void dispose() {
+    _scrollController.verticalScroller.removeListener(_onVerticalScroll);
+    _scrollController.horizontalScroller.removeListener(_onHorizontalScroll);
+    _scrollController.dispose();
+    _scrollController.verticalScroller.dispose();
+    _scrollController.horizontalScroller.dispose();
     _controller
       ..removeListener(_onTextChanged)
       ..removeListener(_onSelectionChanged)
@@ -75,7 +93,94 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     super.dispose();
   }
 
+  void _onVerticalScroll() {
+    final scroller = _scrollController.verticalScroller;
+    if (!scroller.hasClients) return;
+    final position = scroller.position;
+    final max = position.maxScrollExtent;
+    if (max <= 0) {
+      _stickToEnd = false;
+      return;
+    }
+    // re_editor 的 makePositionVisible（End 键/方向键移到行尾时调用）纵向
+    // jumpTo 不 clamp 到 maxScrollExtent，越界后 goBallistic 会以弹簧
+    // 动画拉回，表现为“滚到底再回弹一段”。越界当帧直接拉回 max。
+    if (position.pixels > max) {
+      scroller.jumpTo(max);
+      _stickToEnd = true;
+      return;
+    }
+    // 用户主动滚离底部后取消贴底，避免和手动滚动打架。
+    if (position.pixels < max - 48) {
+      _stickToEnd = false;
+      return;
+    }
+    if (position.pixels >= max - 2) {
+      _stickToEnd = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_stickToEnd) return;
+        if (!scroller.hasClients) return;
+        final p = scroller.position;
+        if (p.pixels < p.maxScrollExtent && p.maxScrollExtent > 0) {
+          scroller.jumpTo(p.maxScrollExtent);
+        }
+      });
+    }
+  }
+
+  void _onHorizontalScroll() {
+    final scroller = _scrollController.horizontalScroller;
+    if (!scroller.hasClients) return;
+    final position = scroller.position;
+    final max = position.maxScrollExtent;
+    if (max <= 0) {
+      _hStickToEnd = false;
+      _lastHMax = 0;
+      return;
+    }
+    // re_editor 的 makePositionVisible 横向 jumpTo 不 clamp，光标到行尾时
+    // 目标值会超出 maxScrollExtent 约 lineHeight - padding，越界后
+    // goBallistic 的弹簧动画把位置拉回，表现为“滚到末尾再回弹”。
+    // 越界发生在同一帧内（jumpTo 同步通知），这里立即拉回 max 掐掉回弹。
+    if (position.pixels > max) {
+      scroller.jumpTo(max);
+      _hStickToEnd = true;
+      _lastHMax = max;
+      return;
+    }
+    // 贴底期间 maxScrollExtent 增长（高亮 isolate 异步重建段落、外部
+    // 内容更新等）时跟随到新末端，避免行尾被裁出视口、光标不可见。
+    if (_hStickToEnd && max > _lastHMax + 0.5) {
+      scroller.jumpTo(max);
+      _lastHMax = max;
+      return;
+    }
+    // 用户主动滚离末端后取消贴底，避免和手动滚动打架。
+    if (position.pixels < max - 48) {
+      _hStickToEnd = false;
+      _lastHMax = max;
+      return;
+    }
+    if (position.pixels >= max - 2) {
+      _hStickToEnd = true;
+      _lastHMax = max;
+      // 到行尾后被 width 估算纠正时贴回末端，避免小幅回弹。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_hStickToEnd || !scroller.hasClients) return;
+        final p = scroller.position;
+        if (p.maxScrollExtent > 0 && p.pixels < p.maxScrollExtent) {
+          scroller.jumpTo(p.maxScrollExtent);
+        }
+      });
+    }
+  }
+
   void _onTextChanged() {
+    // 光标/选区变化不重建全文；大 JSON 上 .text 是 O(n) 拼接。
+    final pre = _controller.preValue;
+    if (pre != null && identical(pre.codeLines, _controller.codeLines)) {
+      return;
+    }
     final text = _controller.text;
     if (text != _lastExternalText) {
       _lastExternalText = text;
@@ -101,6 +206,7 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
     return CodeEditor(
       controller: _controller,
       findController: _findController,
+      scrollController: _scrollController,
       toolbarController: widget.toolbarController,
       findBuilder: (context, controller, readonly) {
         return _CodeFindBar(controller: controller, readonly: readonly);
@@ -109,7 +215,9 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
       style: CodeEditorStyle(
         fontSize: 13,
         fontFamily: 'Consolas',
-        fontHeight: 1.5,
+        // 1.5 会得到 19.5 这类碎行高，放大 re_editor 总高度估算误差；
+        // 2.0 → 26px 整数行高，滚到底更稳。
+        fontHeight: 2.0,
         backgroundColor: const Color(0x00000000),
         textColor: shad.colorScheme.foreground,
         cursorColor: shad.colorScheme.primary,
@@ -117,7 +225,14 @@ class _JsonCodeEditorState extends State<JsonCodeEditor> {
         highlightColor: const Color(0x3FFFAB00),
         cursorLineColor: shad.colorScheme.primary.withValues(alpha: 0.06),
         codeTheme: CodeHighlightTheme(
-          languages: {'json': langJson.themeMode},
+          languages: {
+            'json': CodeHighlightThemeMode(
+              mode: langJson,
+              // 总长 / 单行超限时库会跳过高亮，避免大 JSON、超长单行卡顿。
+              maxSize: 512 * 1024,
+              maxLineLength: 8 * 1024,
+            ),
+          },
           theme: atomOneDarkTheme,
         ),
       ),
