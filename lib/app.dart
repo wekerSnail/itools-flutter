@@ -33,7 +33,29 @@ class ToolboxApp extends ConsumerStatefulWidget {
   ConsumerState<ToolboxApp> createState() => _ToolboxAppState();
 }
 
-class _ToolboxAppState extends ConsumerState<ToolboxApp> {
+class _ToolboxAppState extends ConsumerState<ToolboxApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    // system 模式下系统深浅色切换不会改变 themeProvider，需要主动重建。
+    if (mounted &&
+        ref.read(themeProvider).valueOrNull?.mode == AppThemeMode.system) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);

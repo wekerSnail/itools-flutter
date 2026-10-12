@@ -65,13 +65,18 @@ class ThemeService {
   }
 
   ShadThemeData getThemeData(AppThemeStyle style, Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-
-    switch (style) {
-      case AppThemeStyle.modern:
-        return isDark ? ModernTheme.dark() : ModernTheme.light();
-      case AppThemeStyle.luxury:
-        return isDark ? LuxuryTheme.dark() : LuxuryTheme.light();
-    }
+    final key = '${style.name}:${brightness.name}';
+    return _cache.putIfAbsent(key, () {
+      final isDark = brightness == Brightness.dark;
+      switch (style) {
+        case AppThemeStyle.modern:
+          return isDark ? ModernTheme.dark() : ModernTheme.light();
+        case AppThemeStyle.luxury:
+          return isDark ? LuxuryTheme.dark() : LuxuryTheme.light();
+      }
+    });
   }
+
+  /// ThemeData 不可变，按 (style, brightness) 缓存，避免每次 build 重建整份主题。
+  static final Map<String, ShadThemeData> _cache = <String, ShadThemeData>{};
 }

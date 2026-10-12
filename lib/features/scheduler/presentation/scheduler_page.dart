@@ -1,4 +1,3 @@
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -8,6 +7,7 @@ import '../../../core/design_tokens/index.dart';
 import '../../../core/providers/scheduler_provider.dart';
 import '../../../core/providers/task_runner_provider.dart';
 import '../../../core/system/app_runtime.dart';
+import '../../../core/system/window_manager_service.dart';
 import '../../../core/widgets/custom_progress.dart';
 import '../../../core/widgets/custom_scaffold.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -130,31 +130,21 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
   ///
   /// 只表示提交结果；长任务不会在此 await 完成。
   Future<_RunSubmitStatus> _invokeMainWindowRunTask(String taskId) async {
-    try {
-      final windows = await WindowController.getAll();
-      // 主窗口无启动参数（windowArgument 为空），据此从窗口列表中识别
-      final mainWindow = windows.where((w) => w.arguments.isEmpty).firstOrNull;
-      if (mainWindow == null) {
-        throw StateError('未找到主窗口');
-      }
-      final result = await WindowController.fromWindowId(
-        mainWindow.windowId,
-      ).invokeMethod<String>('run_task_now', taskId).timeout(
-            const Duration(seconds: 5),
-            // 超时按"可能已提交"处理：主引擎是常驻的调度器，
-            // 任务大概率已在执行，不能误报"任务不存在"或"已完成"。
-            onTimeout: () => 'assumed_started',
-          );
-      return switch (result) {
-        'started' => _RunSubmitStatus.started,
-        'not_found' => _RunSubmitStatus.notFound,
-        'assumed_started' => _RunSubmitStatus.assumedStarted,
-        _ => _RunSubmitStatus.failed,
-      };
-    } on Exception catch (e) {
-      debugPrint('[SchedulerPage] Forward run_task_now failed: $e');
-      return _RunSubmitStatus.failed;
-    }
+    final result = await WindowManagerService.instance
+        .forwardToMainEngine<String>(
+          'run_task_now',
+          taskId,
+          // 超时按"可能已提交"处理：主引擎是常驻的调度器，
+          // 任务大概率已在执行，不能误报"任务不存在"或"已完成"。
+          timeout: const Duration(seconds: 5),
+          onTimeout: 'assumed_started',
+        );
+    return switch (result) {
+      'started' => _RunSubmitStatus.started,
+      'not_found' => _RunSubmitStatus.notFound,
+      'assumed_started' => _RunSubmitStatus.assumedStarted,
+      _ => _RunSubmitStatus.failed,
+    };
   }
 
   String _taskTypeLabel(ScheduledTaskType type) {
@@ -408,9 +398,4 @@ class _SchedulerPageState extends ConsumerState<SchedulerPage> {
 }
 
 /// 跨窗口 run_task_now 的提交结果（不代表任务执行完成）。
-enum _RunSubmitStatus {
-  started,
-  notFound,
-  assumedStarted,
-  failed,
-}
+enum _RunSubmitStatus { started, notFound, assumedStarted, failed }

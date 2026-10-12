@@ -56,10 +56,10 @@ Future<void> main(List<String> args) async {
 
   if (args.isNotEmpty && args.first == 'multi_window') {
     AppRuntime.isChildWindow = true;
-    final rawArgs = args.elementAtOrNull(2);
-    final toolId = WindowManagerService.decodeToolId(rawArgs);
-    final instance = WindowManagerService.decodeInstanceNumber(rawArgs);
-    final destroyOnClose = WindowManagerService.decodeDestroyOnClose(rawArgs);
+    final windowArgs = WindowManagerService.parseArgs(args.elementAtOrNull(2));
+    final toolId = windowArgs.toolId;
+    final instance = windowArgs.instance;
+    final destroyOnClose = windowArgs.destroyOnClose;
     debugPrint(
       '[Main] Child window launched: toolId=$toolId #$instance '
       'destroyOnClose=$destroyOnClose',

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' hide Typography;
 import 'package:flutter/services.dart';
@@ -26,7 +27,6 @@ class JsonFormatterPage extends StatefulWidget {
 }
 
 class _JsonFormatterPageState extends State<JsonFormatterPage> {
-  final JsonFormatterService _service = JsonFormatterService();
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _outputController = TextEditingController();
   final JsonContextMenuController _outputMenuController =
@@ -42,6 +42,13 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
   CodeFindController? _inputFindController;
 
   bool _isProcessing = false;
+
+  /// 超过该长度才走 isolate；小输入在主 isolate 直接处理，
+  /// 避免每次校验/操作都 spawn 一个 isolate 的开销。
+  static const int _isolateThreshold = 100 * 1024;
+
+  /// 停止编辑多久后才做 JSON 校验，避免大文档边打字边 decode。
+  static const Duration _validateDebounce = Duration(milliseconds: 2000);
 
   @override
   void initState() {
@@ -70,7 +77,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
       return;
     }
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+    _debounceTimer = Timer(_validateDebounce, () async {
       final valid = await _isValidAsync(input);
       if (mounted) {
         setState(() {
@@ -93,9 +100,20 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     ShadToaster.of(context).show(ShadToast(description: Text(message)));
   }
 
-  Future<bool> _isValidAsync(String input) async {
+  Future<bool> _isValidAsync(String input) => _runValidate(input);
+
+  /// 必须是 static：Isolate.run 的闭包若捕获 State（含 Timer 字段），
+  /// 跨 isolate 传值会抛 "object is unsendable - Class:_Timer"。
+  static Future<bool> _runValidate(String input) {
+    if (input.length <= _isolateThreshold) {
+      return Future<bool>.value(_validate(input));
+    }
+    return Isolate.run(() => _validate(input));
+  }
+
+  static bool _validate(String input) {
     try {
-      await Isolate.run(() => json.decode(input));
+      json.decode(input);
       return true;
     } catch (_) {
       return false;
@@ -118,12 +136,17 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     try {
       final result = await _runInIsolate(operation, input);
       if (!mounted) return;
+      final checkValidity =
+          operation == JsonOperation.escape ||
+          operation == JsonOperation.unescape;
+      // escape/unescape 结果可能很大，校验同样按阈值决定是否走 isolate。
+      final valid = checkValidity ? await _isValidAsync(result) : true;
+      if (!mounted) return;
       setState(() {
-        if (operation == JsonOperation.escape ||
-            operation == JsonOperation.unescape) {
+        if (checkValidity) {
           _inputController.text = result;
-          _isValid = _service.isValid(result);
-          _errorMessage = _isValid ? null : 'JSON 格式无效';
+          _isValid = valid;
+          _errorMessage = valid ? null : 'JSON 格式无效';
         } else if (operation == JsonOperation.format) {
           _inputController.text = result;
           _outputController.text = result;
@@ -151,23 +174,43 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     }
   }
 
-  static Future<String> _runInIsolate(
+  static Future<String> _runInIsolate(JsonOperation operation, String input) {
+    if (input.length <= _isolateThreshold) {
+      // 小输入直接在调用方 isolate 处理，避免 spawn 开销。
+      final service = JsonFormatterService();
+      return Future<String>.value(_applyOperation(service, operation, input));
+    }
+    return Isolate.run(() {
+      return _applyOperation(JsonFormatterService(), operation, input);
+    });
+  }
+
+  /// 必须是 static：Isolate.run 的闭包若捕获 State（含 Timer 字段），
+  /// 跨 isolate 传值会抛 "object is unsendable - Class:_Timer"。
+  static Future<String?> _runSmartRepair(String input) {
+    if (input.length <= _isolateThreshold) {
+      return Future<String?>.value(JsonFormatterService().smartRepair(input));
+    }
+    return Isolate.run(() {
+      return JsonFormatterService().smartRepair(input);
+    });
+  }
+
+  static String _applyOperation(
+    JsonFormatterService service,
     JsonOperation operation,
     String input,
-  ) async {
-    return Isolate.run(() {
-      final service = JsonFormatterService();
-      switch (operation) {
-        case JsonOperation.format:
-          return service.format(input);
-        case JsonOperation.minify:
-          return service.minify(input);
-        case JsonOperation.escape:
-          return service.escape(input);
-        case JsonOperation.unescape:
-          return service.unescape(input);
-      }
-    });
+  ) {
+    switch (operation) {
+      case JsonOperation.format:
+        return service.format(input);
+      case JsonOperation.minify:
+        return service.minify(input);
+      case JsonOperation.escape:
+        return service.escape(input);
+      case JsonOperation.unescape:
+        return service.unescape(input);
+    }
   }
 
   void _copyOutput() {
@@ -220,9 +263,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     });
 
     try {
-      final repaired = await Isolate.run(() {
-        return JsonFormatterService().smartRepair(input);
-      });
+      final repaired = await _runSmartRepair(input);
       if (!mounted) return;
       if (repaired != null) {
         setState(() {
@@ -283,9 +324,14 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                   const dividerWidth = 6.0;
                   const minPanelWidth = 300.0;
                   final availableWidth = totalWidth - dividerWidth;
-                  final leftWidth = (availableWidth * _splitRatio).clamp(
+                  // 窗口过窄时 max 可能小于 min，clamp 会抛错，故先取上界保护。
+                  final maxLeft = math.max(
                     minPanelWidth,
                     availableWidth - minPanelWidth,
+                  );
+                  final leftWidth = (availableWidth * _splitRatio).clamp(
+                    minPanelWidth,
+                    maxLeft,
                   );
                   final rightWidth = availableWidth - leftWidth;
 
@@ -293,7 +339,7 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       SizedBox(width: leftWidth, child: _buildInputPanel(shad)),
-                      _buildDivider(shad),
+                      _buildDivider(shad, availableWidth),
                       SizedBox(
                         width: rightWidth,
                         child: _buildOutputPanel(shad),
@@ -389,15 +435,12 @@ class _JsonFormatterPageState extends State<JsonFormatterPage> {
     );
   }
 
-  Widget _buildDivider(ShadThemeData shad) {
+  Widget _buildDivider(ShadThemeData shad, double availableWidth) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (_) => setState(() => _isDragging = true),
       onHorizontalDragUpdate: (details) {
-        final renderBox = context.findRenderObject() as RenderBox;
-        final totalWidth = renderBox.size.width - (Spacing.cardPadding * 2);
-        const dividerWidth = 6.0;
-        final availableWidth = totalWidth - dividerWidth;
+        // 直接复用 LayoutBuilder 给出的可用宽度，避免另行推算导致比例跳变。
         setState(() {
           _splitRatio = (_splitRatio + details.delta.dx / availableWidth).clamp(
             0.2,

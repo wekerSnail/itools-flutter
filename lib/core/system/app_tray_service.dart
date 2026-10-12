@@ -17,6 +17,7 @@ class AppTrayService with TrayListener, WindowListener {
   bool _quitting = false;
   bool _launchAtStartupEnabled = false;
   bool _trayIconConfigured = false;
+  String? _menuSignature;
   Timer? _trayRecoveryTimer;
 
   /// 幂等初始化：并发/重入共享同一 Future，避免首次仍在 delay 中时二次调用直接返回。
@@ -278,7 +279,7 @@ class AppTrayService with TrayListener, WindowListener {
         await trayManager.setToolTip('Windows 工具集 - 点击打开主界面');
 
         debugPrint('[Tray._setupTray] Setting context menu first...');
-        await _refreshContextMenu();
+        await _refreshContextMenu(force: true);
 
         debugPrint('[Tray._setupTray] Now setting icon: $iconPathToUse');
         // 转换为绝对路径（使用正斜杠）
@@ -305,7 +306,14 @@ class AppTrayService with TrayListener, WindowListener {
     }
   }
 
-  Future<void> _refreshContextMenu() async {
+  Future<void> _refreshContextMenu({bool force = false}) async {
+    // 菜单内容仅由开机自启状态决定；状态未变时跳过原生下发，
+    // 避免 30s 恢复检查反复重建菜单。
+    final signature = 'startup=$_launchAtStartupEnabled';
+    if (!force && signature == _menuSignature) {
+      return;
+    }
+    _menuSignature = signature;
     await trayManager.setContextMenu(
       Menu(
         items: [
@@ -332,12 +340,16 @@ class AppTrayService with TrayListener, WindowListener {
       await launchAtStartup.disable();
       // 校验注册表确实已清除，失败时回滚菜单状态
       _launchAtStartupEnabled = await launchAtStartup.isEnabled();
-      debugPrint('[Tray] Disable launch at startup verified: !$_launchAtStartupEnabled');
+      debugPrint(
+        '[Tray] Disable launch at startup verified: !$_launchAtStartupEnabled',
+      );
     } else {
       await launchAtStartup.enable();
       // enable() 恒返回 true，必须读注册表确认实际写入成功
       _launchAtStartupEnabled = await checkLaunchAtStartupStatus();
-      debugPrint('[Tray] Enable launch at startup verified: $_launchAtStartupEnabled');
+      debugPrint(
+        '[Tray] Enable launch at startup verified: $_launchAtStartupEnabled',
+      );
     }
     await _refreshContextMenu();
   }

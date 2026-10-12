@@ -4,30 +4,28 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import '../../../core/data/file_store.dart';
+import '../data/task_log_buffer.dart';
 import '../domain/scheduled_task.dart';
 import 'cmd_escape.dart';
 
 class TaskRunner {
   TaskRunner();
 
-  static const String _logsPath = 'scheduler/logs.json';
-  static const Duration _logRetentionDuration = Duration(days: 5);
   static const Duration _defaultProcessTimeout = Duration(seconds: 600);
-  final _store = FileStore();
 
-  final ValueNotifier<List<String>> logs = ValueNotifier<List<String>>(
-    <String>[],
-  );
+  /// 日志缓冲：环形淘汰 + 合并通知 + 防抖落盘。
+  final TaskLogBuffer _logBuffer = TaskLogBuffer();
+
+  /// 对外日志通知（倒序，下标 0 为最新）。
+  ValueNotifier<List<String>> get logs => _logBuffer.logs;
+
   final Map<String, int> _lastOccurrenceByTaskId = <String, int>{};
-  final List<_RunnerLogEntry> _logEntries = <_RunnerLogEntry>[];
 
   /// 执行中的任务 id：Timer.periodic 不会 await 回调结束，
   /// 同一任务跨过下一 occurrence 会并发重入，用此集合跳过。
   final Set<String> _inFlightTaskIds = <String>{};
 
   bool _logsLoaded = false;
-  Timer? _saveLogsDebounceTimer;
   Timer? _timer;
 
   Future<void> start({
@@ -66,8 +64,7 @@ class TaskRunner {
 
   void dispose() {
     stop();
-    _saveLogsDebounceTimer?.cancel();
-    logs.dispose();
+    _logBuffer.dispose();
   }
 
   bool _isDue(ScheduledTask task, DateTime now) {
@@ -215,10 +212,7 @@ class TaskRunner {
     await scriptFile.writeAsString(cmd, flush: true);
 
     try {
-      final process = await Process.start('cmd', [
-        '/c',
-        scriptFile.path,
-      ]);
+      final process = await Process.start('cmd', ['/c', scriptFile.path]);
 
       final stdoutSub = process.stdout
           .transform(utf8.decoder)
@@ -362,19 +356,9 @@ ${task.script}
   }
 
   void _appendLog(String line) {
-    final now = DateTime.now();
-    _logEntries.insert(
-      0,
-      _RunnerLogEntry(createdAt: now, message: line.trimRight()),
+    _logBuffer.append(
+      RunnerLogEntry(createdAt: DateTime.now(), message: line.trimRight()),
     );
-
-    _pruneExpiredLogs(now: now);
-    if (_logEntries.length > 2000) {
-      _logEntries.removeRange(2000, _logEntries.length);
-    }
-
-    logs.value = _logEntries.map((e) => e.message).toList(growable: false);
-    _debouncedSaveLogs();
   }
 
   Future<void> _ensureLogsLoaded() async {
@@ -383,7 +367,6 @@ ${task.script}
     }
     await _loadLogsFromDisk();
     _logsLoaded = true;
-    _debouncedSaveLogs();
   }
 
   /// 从磁盘重新加载日志并刷新通知。
@@ -396,73 +379,6 @@ ${task.script}
   }
 
   Future<void> _loadLogsFromDisk() async {
-    final raw = await _store.readJson(_logsPath);
-    if (raw.isEmpty) {
-      _logEntries.clear();
-      logs.value = <String>[];
-      return;
-    }
-
-    try {
-      final decoded = jsonDecode(raw) as List<dynamic>;
-      _logEntries
-        ..clear()
-        ..addAll(
-          decoded.map(
-            (e) => _RunnerLogEntry.fromJson(e as Map<String, dynamic>),
-          ),
-        );
-
-      _pruneExpiredLogs(now: DateTime.now());
-      if (_logEntries.length > 2000) {
-        _logEntries.removeRange(2000, _logEntries.length);
-      }
-      logs.value = _logEntries.map((e) => e.message).toList(growable: false);
-    } catch (_) {
-      _logEntries.clear();
-      logs.value = <String>[];
-    }
-  }
-
-  void _pruneExpiredLogs({required DateTime now}) {
-    final cutoff = now.subtract(_logRetentionDuration);
-    _logEntries.removeWhere((e) => e.createdAt.isBefore(cutoff));
-  }
-
-  void _debouncedSaveLogs() {
-    _saveLogsDebounceTimer?.cancel();
-    _saveLogsDebounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _saveLogs();
-    });
-  }
-
-  Future<void> _saveLogs() async {
-    final payload = jsonEncode(
-      _logEntries.map((e) => e.toJson()).toList(growable: false),
-    );
-    await _store.writeJson(_logsPath, payload);
-  }
-}
-
-class _RunnerLogEntry {
-  _RunnerLogEntry({required this.createdAt, required this.message});
-
-  final DateTime createdAt;
-  final String message;
-
-  factory _RunnerLogEntry.fromJson(Map<String, dynamic> json) {
-    return _RunnerLogEntry(
-      createdAt:
-          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
-      message: json['message']?.toString() ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'createdAt': createdAt.toIso8601String(),
-      'message': message,
-    };
+    await _logBuffer.load();
   }
 }

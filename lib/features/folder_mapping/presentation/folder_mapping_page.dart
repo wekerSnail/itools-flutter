@@ -192,7 +192,8 @@ class _FolderMappingPageState extends State<FolderMappingPage> {
 
   Future<void> _openFolder(FolderShortcut shortcut) async {
     final path = shortcut.targetPath;
-    if (!Directory(path).existsSync()) {
+    // 异步判断：网络盘/慢速路径下同步 IO 会阻塞 UI 线程。
+    if (!await Directory(path).exists()) {
       _showToast('目录不存在：$path');
       return;
     }

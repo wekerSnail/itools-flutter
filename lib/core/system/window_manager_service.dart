@@ -241,8 +241,11 @@ class WindowManagerService {
     if (AppRuntime.isChildWindow) {
       // 子窗口不直接簿记窗口（避免残留订阅/孤儿窗口）；转发主引擎创建，
       // 保证 closeAll 退出清理能覆盖到这些实例。
-      final ok = await _forwardToMainEngine('open_new_tool_window', tool.id);
-      if (!ok) {
+      final result = await forwardToMainEngine<String>(
+        'open_new_tool_window',
+        tool.id,
+      );
+      if (result != 'ok') {
         throw StateError('open_new_tool_window failed in child window');
       }
       return;
@@ -271,23 +274,28 @@ class WindowManagerService {
   }
 
   /// 子窗口 → 主引擎方法转发。主窗口无启动参数（windowArgument 为空）。
-  Future<bool> _forwardToMainEngine(String method, Object? arguments) async {
+  ///
+  /// 主窗口识别收敛在此处，供所有跨窗口调用复用；调用失败返回 null，
+  /// 调用超时返回 [onTimeout]（默认 null），由调用方按语义处理。
+  Future<T?> forwardToMainEngine<T>(
+    String method,
+    Object? arguments, {
+    Duration timeout = _invokeTimeout,
+    T? onTimeout,
+  }) async {
     try {
-      final windows = await WindowController.getAll().timeout(_invokeTimeout);
+      final windows = await WindowController.getAll().timeout(timeout);
       final mainWindow = windows.where((w) => w.arguments.isEmpty).firstOrNull;
       if (mainWindow == null) {
         debugPrint('[WindowManager] Main window not found for $method');
-        return false;
+        return null;
       }
-      await _safeInvoke<void>(
-        WindowController.fromWindowId(mainWindow.windowId),
-        method,
-        arguments,
-      );
-      return true;
+      return await WindowController.fromWindowId(mainWindow.windowId)
+          .invokeMethod<T>(method, arguments)
+          .timeout(timeout, onTimeout: () => onTimeout);
     } catch (e) {
       debugPrint('[WindowManager] Forward $method failed: $e');
-      return false;
+      return null;
     }
   }
 
@@ -320,29 +328,35 @@ class WindowManagerService {
   Future<void> _disposeOtherHiddenWindows({
     required String exceptToolId,
   }) async {
-    final entries = List<MapEntry<String, List<String>>>.from(
-      _openWindowIds.entries,
-    );
-    for (final entry in entries) {
-      if (entry.key == exceptToolId) {
-        continue;
-      }
+    // 先快照目标，再并发探测；失败/失效项收集后统一处理，
+    // 避免遍历过程中修改 _openWindowIds。
+    final targets = <({String toolId, String windowId})>[
+      for (final entry in _openWindowIds.entries)
+        if (entry.key != exceptToolId)
+          for (final id in entry.value) (toolId: entry.key, windowId: id),
+    ];
 
-      for (final windowId in List<String>.from(entry.value)) {
+    final failed = await Future.wait(
+      targets.map((target) async {
         try {
-          final controller = WindowController.fromWindowId(windowId);
           // 超时说明目标引擎销毁中/已死，按失效处理清理缓存。
-          await _safeInvoke<void>(controller, 'dispose_if_hidden');
+          await _safeInvoke<void>(
+            WindowController.fromWindowId(target.windowId),
+            'dispose_if_hidden',
+          );
+          return null;
         } catch (e) {
-          debugPrint('[WindowManager] dispose_if_hidden $windowId failed: $e');
-          _forgetWindow(entry.key, windowId);
-          entry.value.remove(windowId);
+          debugPrint(
+            '[WindowManager] dispose_if_hidden ${target.windowId} failed: $e',
+          );
+          return target;
         }
-      }
+      }),
+    );
 
-      if (entry.value.isEmpty) {
-        _openWindowIds.remove(entry.key);
-      }
+    for (final target
+        in failed.whereType<({String toolId, String windowId})>()) {
+      _removeWindowId(target.toolId, target.windowId);
     }
   }
 
@@ -355,27 +369,33 @@ class WindowManagerService {
     bool destroyOnClose = false,
   }) => '$toolId|$instance|${destroyOnClose ? 'close' : 'hide'}';
 
-  static String? decodeToolId(String? args) {
-    if (args == null || args.isEmpty) return null;
-    return args.split('|').first;
-  }
-
-  /// 窗口实例序号（1 起）；旧格式参数无后缀时视为 1。
-  static int decodeInstanceNumber(String? args) {
-    if (args == null || args.isEmpty) return 1;
+  /// 一次性解析窗口启动参数，避免重复 `split('|')`。
+  static WindowArgs parseArgs(String? args) {
+    if (args == null || args.isEmpty) {
+      return const WindowArgs(toolId: null, instance: 1);
+    }
     final parts = args.split('|');
-    if (parts.length < 2) return 1;
-    return int.tryParse(parts[1]) ?? 1;
-  }
-
-  /// 是否为「关闭即销毁」的临时窗口（子窗口新实例）。
-  static bool decodeDestroyOnClose(String? args) {
-    if (args == null || args.isEmpty) return false;
-    final parts = args.split('|');
-    return parts.length >= 3 && parts[2] == 'close';
+    return WindowArgs(
+      toolId: parts.first.isEmpty ? null : parts.first,
+      instance: parts.length >= 2 ? (int.tryParse(parts[1]) ?? 1) : 1,
+      destroyOnClose: parts.length >= 3 && parts[2] == 'close',
+    );
   }
 
   /// 标题后缀：统一追加实例序号（JSON 格式化 1 / 2 / 3），便于多窗口区分。
   static String formatInstanceTitle(String baseTitle, int instance) =>
       '$baseTitle $instance';
+}
+
+/// 解析后的窗口启动参数（旧格式无后缀时 instance=1、destroyOnClose=false）。
+class WindowArgs {
+  const WindowArgs({
+    required this.toolId,
+    required this.instance,
+    this.destroyOnClose = false,
+  });
+
+  final String? toolId;
+  final int instance;
+  final bool destroyOnClose;
 }
