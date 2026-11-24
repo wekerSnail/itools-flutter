@@ -1,0 +1,8 @@
+{
+  "name": "itools",
+  "identifier": "com.rydeen.itools",
+  "version": "1.0.0",
+  "out": "dist",
+  "ios": { "minimumSystemVersion": "17.0" },
+  "android": { "minSdk": 26 }
+}

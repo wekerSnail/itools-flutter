@@ -1,44 +1,150 @@
-# Windows 工具集（Flutter）
+# itools / Windows 工具集
 
-一个可扩展的 Flutter Windows 桌面工具箱应用，支持多窗口、系统托盘、全局快捷键。
+用 Go + [MyGo](https://mygo.egoist.dev) 重写的 Windows 桌面工具集。原生 UI、单进程多窗口、托盘常驻，不依赖 WebView2、VC++ 运行库或 Visual Studio C++ 工具链。
 
-## 内置工具
+## 功能
 
-- **定时任务** — JS 脚本 / 终端命令，支持秒/分/时/天/周/月周期调度
-- **文件夹映射** — 集合管理常用目录，双击快速打开
-- **JSON 格式化** — 格式化、压缩、转义、智能修复，代码编辑器支持语法高亮
-- **备份还原** — 导出/导入所有工具数据
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| 主窗口 | 完成 | 工具网格、设置入口、托盘唤起、二次启动唤起 |
+| 定时任务 | 完成 | 终端命令 / JS 脚本、变量替换、超时杀进程树、运行日志 |
+| 文件夹映射 | 完成 | 集合与快捷方式管理、文件夹选择、双击打开 |
+| JSON 格式化 | 完成 | 格式化、压缩、转义、反转义、智能修复、并排编辑 |
+| 主题设置 | 完成 | 精致现代 / 极简轻奢，亮色 / 暗色 / 跟随系统 |
+| 热键设置 | 完成 | 全局热键录制、冲突覆盖、清除、持久化 |
+| 备份还原 | 完成 | 导出 / 导入 5 个受管 JSON 文件 |
+| 开机自启 | 完成 | Windows 当前用户启动项，隐藏启动 |
 
 ## 环境要求
 
-- Flutter SDK（stable）
-- Visual Studio C++ 桌面开发组件（Windows 构建必需）
-- Node.js（可选，仅 JS 脚本任务需要）
+- Windows 10 / 11（x64）
+- Go 1.27 或更高
+- Node.js：仅当定时任务使用「JS 脚本」时需要，运行时从 `PATH` 查找 `node`
 
-## 快速开始
+构建不需要 Bun、Node 构建链、Visual Studio C++ 工作负载。
 
-```bash
-flutter pub get
-flutter run -d windows
+## 开发
+
+```powershell
+# 使用脚本（推荐）
+.\scripts\dev.ps1
+
+# 需要走本地代理下载依赖时
+.\scripts\dev.ps1 -Proxy http://127.0.0.1:7890
+
+# 或直接运行
+go run .
 ```
 
-## 构建与部署
+以 `--minimized` 启动时只在托盘驻留：
 
-```bash
-flutter build windows --release
+```powershell
+go run . --minimized
 ```
 
-产物目录：`build/windows/x64/runner/Release/`
+> `go tool mygo build` 会在仓库根目录留下 `mygo_windows_*.syso`，它会让普通 `go build` 被识别为打包版并使用 `%APPDATA%\itools`。`scripts\dev.ps1` 会自动清理它，保证开发版使用 `%APPDATA%\itools-dev`。
 
-**必须复制整个 Release 文件夹**，不能只复制 exe。可用 `deploy.ps1` 打包。
+## 编译与打包
 
-目标机器需要安装 [VC++ Redistributable 2022+](https://support.microsoft.com/en-us/help/2977003)。
+```powershell
+# 格式检查 + go vet + go test + 编译到 build\itools.exe
+.\scripts\build.ps1
 
-## 文档
+# 运行测试并生成 Windows 安装包 / 可执行文件到 dist
+.\scripts\package.ps1
 
-- [文档总览](docs/README.md)
-- [部署指南](docs/deployment/README.md)
-- [托盘诊断](docs/tray/README.md)
-- [自启动排查](docs/AUTOSTART_TROUBLESHOOTING.md)
-- [JSON 格式化](docs/features/json-formatter.md)
-- [国内镜像配置](docs/development/mirror-setup.md)
+# 不生成 NSIS 安装包，只生成可执行文件
+.\scripts\package.ps1 -SkipInstaller
+
+# 清理构建产物
+.\scripts\clean.ps1
+```
+
+直接使用 Go 命令：
+
+```powershell
+go tool mygo build -o dist -platform windows/amd64
+```
+
+`mygo` CLI 通过 `go.mod` 的 tool 指令固定版本，不需要全局安装。打包产物在 `dist/`，包含可执行文件与安装包（NSIS 由 MyGo 自动下载）。
+
+## 数据目录
+
+| 版本 | 目录 |
+|---|---|
+| 打包版 | `%APPDATA%\itools` |
+| 开发版（`go run` / `go tool mygo dev`） | `%APPDATA%\itools-dev` |
+
+受管文件：
+
+```
+settings/theme.json
+settings/hotkeys.json
+scheduler/tasks.json
+scheduler/logs.json
+folder_mapping/collections.json
+```
+
+备份文件格式与原 Flutter 版本兼容：`schemaVersion: 2`、`app: "itools-flutter"`，导入时只接受上述 5 个文件。
+
+## 项目结构
+
+```
+main.go                     入口：单实例、生命周期
+mygo.json                   MyGo 应用配置
+assets/                     托盘 PNG、打包图标
+resources/                  应用资源（图标）
+internal/
+  app/                      服务装配、窗口管理、托盘、开机自启
+  core/
+    id/                     随机 ID
+    jsontime/               与原版兼容的时间格式
+    logging/                文件日志
+    store/                  原子写 JSON 存储
+    tools/                  工具元数据
+  features/
+    home/                   主窗口工具网格
+    scheduler/              定时任务：模型、存储、调度、执行、UI
+    folder_mapping/         文件夹映射
+    json_formatter/         JSON 工具与编辑器 UI
+    backup/                 备份导入导出
+    settings/               设置与四个子页
+  services/
+    hotkeys/                全局热键与配置
+  ui/
+    icons/                  内置 Lucide SVG 图标
+    theme/                  两套配色与 MyGo 主题映射
+    widgets/                页头、卡片、空状态等共享组件
+docs/
+  mygo-rewrite-plan.md      重写方案与进度
+  features/json-formatter.md JSON 功能行为说明
+scripts/
+  dev.ps1
+  build.ps1
+  package.ps1
+  clean.ps1
+```
+
+## 开发说明
+
+- UI 用 MyGo `ui` 包即时构建；阻塞操作（对话框、进程、文件）放在 goroutine，完成后通过 `Window.Invalidate` / `Window.Update` 回到主线程。
+- 全局热键由 `mygo.GlobalShortcut` 注册；配置兼容旧版 `settings/hotkeys.json`。
+- 定时任务引擎是单进程内的常驻服务，所有窗口关闭后仍在托盘后台运行。
+- 终端命令通过临时 `.cmd` 执行，变量按原版规则转义；超时使用 `taskkill /T /F` 终止进程树。
+- JSON 格式化保留键顺序与大整数精度，不使用 `map[string]any` 中转。
+- MyGo 固定为 `v0.10.0`；升级需单独评审并跑完整回归。
+
+## 依赖下载
+
+默认使用 `https://goproxy.cn,direct`。需要本地代理时：
+
+```powershell
+$env:GOPROXY = "https://goproxy.cn,direct"
+$env:HTTP_PROXY = "http://127.0.0.1:7890"
+$env:HTTPS_PROXY = "http://127.0.0.1:7890"
+go mod download
+```
+
+## 许可证
+
+见 [LICENSE](LICENSE)。
