@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -127,6 +128,162 @@ func ErrorMessage(input string) string {
 		return "无效的JSON格式: " + err.Error()
 	}
 	return ""
+}
+
+// LineProperty is the JSON property of one formatted line, for the
+// context menu's copy actions.
+type LineProperty struct {
+	Name     string
+	Value    string
+	HasName  bool
+	HasValue bool
+}
+
+// ParseLineProperty reads the "key": value pair of one formatted JSON
+// line, as the Flutter version's context menu did: a line whose key is
+// not a quoted string holds no property at all.
+func ParseLineProperty(line string) LineProperty {
+	trimmed := strings.TrimRight(line, " \t\r\n")
+	if trimmed == "" {
+		return LineProperty{}
+	}
+	colon := strings.IndexByte(trimmed, ':')
+	if colon < 0 {
+		return LineProperty{}
+	}
+	keyPart := strings.TrimSpace(trimmed[:colon])
+	valuePart := strings.TrimSpace(trimmed[colon+1:])
+	if len(keyPart) < 2 || keyPart[0] != '"' || keyPart[len(keyPart)-1] != '"' {
+		return LineProperty{}
+	}
+	prop := LineProperty{Name: keyPart[1 : len(keyPart)-1], HasName: true}
+	if valuePart != "" {
+		if value, ok := extractLineValue(valuePart); ok {
+			prop.Value, prop.HasValue = value, true
+		}
+	}
+	return prop
+}
+
+// extractLineValue reads the single value at the head of s, dropping a
+// trailing comma.
+func extractLineValue(s string) (string, bool) {
+	trimmed := strings.TrimRight(s, " \t\r\n")
+	if trimmed == "" {
+		return "", false
+	}
+	if trimmed[len(trimmed)-1] == ',' {
+		trimmed = strings.TrimRight(trimmed[:len(trimmed)-1], " \t\r\n")
+		if trimmed == "" {
+			return "", false
+		}
+	}
+	return parseSingleLineValue(trimmed), true
+}
+
+// parseSingleLineValue returns the string, number, literal, object or
+// array at the head of v.
+func parseSingleLineValue(v string) string {
+	if v == "" {
+		return ""
+	}
+	if v[0] == '"' {
+		if end := matchingQuote(v, 0); end > 0 {
+			return v[:end+1]
+		}
+		return v
+	}
+	if v == "true" || v == "false" || v == "null" {
+		return v
+	}
+	if match := lineNumberPattern.FindString(v); match != "" {
+		return match
+	}
+	if v[0] == '{' {
+		if end := matchingBrace(v, 0); end > 0 {
+			return v[:end+1]
+		}
+		return v
+	}
+	if v[0] == '[' {
+		if end := matchingBracket(v, 0); end > 0 {
+			return v[:end+1]
+		}
+		return v
+	}
+	return v
+}
+
+var lineNumberPattern = regexp.MustCompile(`^-?\d+(\.\d+)?([eE][+-]?\d+)?`)
+
+// matchingQuote returns where the string starting at start closes, or -1.
+func matchingQuote(text string, start int) int {
+	for i := start + 1; i < len(text); i++ {
+		if text[i] == '\\' {
+			i++
+			continue
+		}
+		if text[i] == '"' {
+			return i
+		}
+	}
+	return -1
+}
+
+// matchingBrace returns where the object starting at start closes, or -1.
+func matchingBrace(text string, start int) int {
+	depth := 0
+	inString := false
+	for i := start; i < len(text); i++ {
+		if text[i] == '\\' {
+			i++
+			continue
+		}
+		if text[i] == '"' {
+			inString = !inString
+			continue
+		}
+		if !inString {
+			if text[i] == '{' {
+				depth++
+			}
+			if text[i] == '}' {
+				depth--
+				if depth == 0 {
+					return i
+				}
+			}
+		}
+	}
+	return -1
+}
+
+// matchingBracket returns where the array starting at start closes, or -1.
+func matchingBracket(text string, start int) int {
+	depth := 0
+	inString := false
+	for i := start; i < len(text); i++ {
+		if text[i] == '\\' {
+			i++
+			continue
+		}
+		if text[i] == '"' {
+			inString = !inString
+			continue
+		}
+		if !inString {
+			if text[i] == '[' {
+				depth++
+			}
+			if text[i] == ']' {
+				depth--
+				if depth == 0 {
+					return i
+				}
+			}
+		}
+	}
+	return -1
 }
 
 // SmartRepair tries the same repairs the Flutter version tried, in order.

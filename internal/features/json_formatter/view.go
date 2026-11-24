@@ -67,6 +67,8 @@ func (c *Controller) View(x *ui.Context) {
 	tokenTheme := jsonTokenTheme(p.Dark)
 	c.inputView.Theme = tokenTheme
 	c.outputView.Theme = tokenTheme
+	c.inputView.ContextMenu = c.jsonMenu(x, c.inputView)
+	c.outputView.ContextMenu = c.jsonMenu(x, c.outputView)
 
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "JSON 格式化", "格式化、压缩、转义及智能修复", nil, nil)
@@ -305,6 +307,41 @@ func (c *Controller) copyOutput(x *ui.Context) {
 		return
 	}
 	x.WriteClipboard(c.output.String())
+	x.Toast("已复制到剪贴板")
+}
+
+// jsonMenu builds the copy items the Flutter version's context menu had,
+// for the caret's line. The editor's own items stay above them: MyGo only
+// lets apps add to an editor's menu.
+func (c *Controller) jsonMenu(x *ui.Context, view *editor.State) func(m *ui.Menu) {
+	return func(m *ui.Menu) {
+		prop := ParseLineProperty(view.Buffer.Line(view.CursorPos().Line))
+		if prop.HasName {
+			if m.Item("复制属性名").Chosen() {
+				c.copyText(x, prop.Name)
+			}
+		}
+		if prop.HasValue {
+			if m.Item("复制属性值").Chosen() {
+				c.copyText(x, prop.Value)
+			}
+		}
+		if prop.HasName && prop.HasValue {
+			if m.Item("复制键值对").Chosen() {
+				c.copyText(x, `"`+prop.Name+`": `+prop.Value)
+			}
+		}
+		if prop.HasName || prop.HasValue {
+			m.Separator()
+		}
+		if m.Item("复制全部").Chosen() {
+			c.copyText(x, view.Buffer.String())
+		}
+	}
+}
+
+func (c *Controller) copyText(x *ui.Context, text string) {
+	x.WriteClipboard(text)
 	x.Toast("已复制到剪贴板")
 }
 

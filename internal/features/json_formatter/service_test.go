@@ -87,3 +87,44 @@ func TestErrorMessage(t *testing.T) {
 		t.Fatalf("valid message = %q", got)
 	}
 }
+
+func TestParseLineProperty(t *testing.T) {
+	tests := []struct {
+		line     string
+		name     string
+		value    string
+		hasName  bool
+		hasValue bool
+	}{
+		{`"code": "200",`, "code", `"200"`, true, true},
+		{`  "discountAmt": 3,`, "discountAmt", `3`, true, true},
+		{`"flag": false`, "flag", `false`, true, true},
+		{`"n": null,`, "n", `null`, true, true},
+		{`"str": "a\"b",`, "str", `"a\"b"`, true, true},
+		{`"empty": "",`, "empty", `""`, true, true},
+		{`"obj": {"a": 1},`, "obj", `{"a": 1}`, true, true},
+		{`"obj": {"a": "}"},`, "obj", `{"a": "}"}`, true, true},
+		{`"arr": [1, 2],`, "arr", `[1, 2]`, true, true},
+		{`"arr": ["]"],`, "arr", `["]"]`, true, true},
+		{`"exp": 1e5,`, "exp", `1e5`, true, true},
+		{`"neg": -2.5,`, "neg", `-2.5`, true, true},
+		{"\t\"key\": 1", "key", `1`, true, true},
+		{`"": 1`, "", `1`, true, true},
+		{`"key":,`, "key", "", true, false},
+		{`"key":`, "key", "", true, false},
+		{`"key": ,`, "key", "", true, false},
+		{`{"a": 1}`, "", "", false, false},
+		{`foo: 1`, "", "", false, false},
+		{`"unterminated: 1`, "", "", false, false},
+		{`no colon here`, "", "", false, false},
+		{`   `, "", "", false, false},
+	}
+	for _, test := range tests {
+		got := ParseLineProperty(test.line)
+		if got.Name != test.name || got.Value != test.value ||
+			got.HasName != test.hasName || got.HasValue != test.hasValue {
+			t.Errorf("ParseLineProperty(%q) = %+v, want name=%q value=%q hasName=%v hasValue=%v",
+				test.line, got, test.name, test.value, test.hasName, test.hasValue)
+		}
+	}
+}
