@@ -221,6 +221,7 @@ func (a *App) newToolView(spec tools.Spec) (func(*ui.Context), func()) {
 			OpenNewWindow: func() {
 				a.windows.OpenTool("json_formatter", true)
 			},
+			Invalidate: a.windows.InvalidateAll,
 		})
 		return controller.View, controller.Close
 	case "scheduler":

@@ -1,6 +1,8 @@
 package json_formatter
 
 import (
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -11,10 +13,23 @@ import (
 	"itools/internal/ui/widgets"
 )
 
+const (
+	// liveValidateLimit is the input size above which edits no longer
+	// trigger a validation pass: scanning tens of megabytes after every
+	// keystroke only burns CPU, so the status bar says so instead.
+	liveValidateLimit = 8 << 20
+	// validateDelay is how long the input must sit still before it is
+	// checked, as typing produces a new text every keystroke.
+	validateDelay = 300 * time.Millisecond
+)
+
+var errRepairFailed = errors.New("无法自动修复该 JSON")
+
 // Deps are what the view calls back into.
 type Deps struct {
 	Palette       func() theme.Palette
 	OpenNewWindow func()
+	Invalidate    func()
 }
 
 // Controller is one JSON formatter window's state.
@@ -27,14 +42,27 @@ type Controller struct {
 	inputView  *editor.State
 	outputView *editor.State
 
+	// mu guards the fields below, which an operation goroutine writes
+	// before it asks for a redraw.
+	mu           sync.Mutex
 	valid        bool
 	errorMessage string
 	status       string
 	message      string
+	busy         bool
+	skipped      bool
+	lastVersion  uint64
+	pending      bool
+	lastEdit     time.Time
+}
 
-	lastVersion uint64
-	pending     bool
-	lastEdit    time.Time
+// statusSnapshot is the part of the state that View draws.
+type statusSnapshot struct {
+	valid        bool
+	errorMessage string
+	status       string
+	busy         bool
+	skipped      bool
 }
 
 // New returns a JSON formatter controller.
@@ -60,9 +88,8 @@ func (c *Controller) Close() {}
 func (c *Controller) View(x *ui.Context) {
 	p := c.deps.Palette()
 	c.refreshValidation(x)
-	if c.message != "" {
-		x.Toast(c.message)
-		c.message = ""
+	if message := c.takeMessage(); message != "" {
+		x.Toast(message)
 	}
 	tokenTheme := jsonTokenTheme(p.Dark)
 	c.inputView.Theme = tokenTheme
@@ -70,10 +97,11 @@ func (c *Controller) View(x *ui.Context) {
 	c.inputView.ContextMenu = c.jsonMenu(x, c.inputView)
 	c.outputView.ContextMenu = c.jsonMenu(x, c.outputView)
 
+	state := c.snapshot()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "JSON 格式化", "格式化、压缩、转义及智能修复", nil, nil)
-		c.viewToolbar(x, p)
-		c.viewStatus(x, p)
+		c.viewToolbar(x, state.busy)
+		c.viewStatus(x, p, state)
 		ui.SplitPercent(x, &c.split, func() {
 			c.viewInput(x, p)
 		}, func() {
@@ -82,30 +110,30 @@ func (c *Controller) View(x *ui.Context) {
 	})
 }
 
-func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette) {
+func (c *Controller) viewToolbar(x *ui.Context, busy bool) {
 	ui.Row(x).FillWidth().Wrap().Gap(6).Padding(12, 20).Children(func() {
-		ui.PrimaryButton(x, "格式化").OnClick(func() {
+		ui.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
 			c.runFormat(x)
 		})
-		ui.Button(x, "压缩").OnClick(func() {
+		ui.Button(x, "压缩").Disabled(busy).OnClick(func() {
 			c.runMinify(x)
 		})
-		ui.Button(x, "转义").OnClick(func() {
+		ui.Button(x, "转义").Disabled(busy).OnClick(func() {
 			c.runEscape(x)
 		})
-		ui.Button(x, "反转义").OnClick(func() {
+		ui.Button(x, "反转义").Disabled(busy).OnClick(func() {
 			c.runUnescape(x)
 		})
-		ui.Button(x, "智能修复").OnClick(func() {
+		ui.Button(x, "智能修复").Disabled(busy).OnClick(func() {
 			c.runRepair(x)
 		})
-		ui.Button(x, "交换").OnClick(func() {
+		ui.Button(x, "交换").Disabled(busy).OnClick(func() {
 			c.swap()
 		})
 		ui.Button(x, "复制").OnClick(func() {
 			c.copyOutput(x)
 		})
-		ui.Button(x, "清空").OnClick(func() {
+		ui.Button(x, "清空").Disabled(busy).OnClick(func() {
 			c.clear()
 		})
 		ui.Button(x, "新窗口").OnClick(func() {
@@ -116,7 +144,7 @@ func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette) {
 	})
 }
 
-func (c *Controller) viewStatus(x *ui.Context, p theme.Palette) {
+func (c *Controller) viewStatus(x *ui.Context, p theme.Palette, st statusSnapshot) {
 	hasInput := c.input.Len() > 0
 	bar := ui.Row(x).
 		FillWidth().
@@ -128,25 +156,30 @@ func (c *Controller) viewStatus(x *ui.Context, p theme.Palette) {
 		AlignItems(ui.Center).
 		Gap(6)
 	bar.Children(func() {
-		if hasInput {
+		switch {
+		case st.busy:
+			ui.Text(x, st.status).FontSize(12).TextColor(p.MutedForeground)
+		case !hasInput:
+			ui.Text(x, "等待输入").FontSize(12).TextColor(p.MutedForeground)
+		case st.skipped && !st.valid:
+			ui.Text(x, "大文件：编辑后不自动校验").FontSize(12).TextColor(p.MutedForeground)
+		default:
 			icon := "x"
 			color := p.Danger
 			label := "JSON 无效"
-			if c.valid {
+			if st.valid {
 				icon = "check"
 				color = p.Success
 				label = "JSON 有效"
 			}
 			ui.Icon(x, icons.Must(icon)).Width(14).Height(14).TextColor(color)
 			ui.Text(x, label).FontSize(12).TextColor(color)
-		} else {
-			ui.Text(x, "等待输入").FontSize(12).TextColor(p.MutedForeground)
 		}
-		if c.status != "" {
-			ui.Text(x, "· "+c.status).FontSize(12).TextColor(p.MutedForeground)
+		if !st.busy && st.status != "" {
+			ui.Text(x, "· "+st.status).FontSize(12).TextColor(p.MutedForeground)
 		}
-		if c.errorMessage != "" {
-			ui.Text(x, c.errorMessage).FontSize(12).TextColor(p.Danger).MaxLines(1)
+		if st.errorMessage != "" {
+			ui.Text(x, st.errorMessage).FontSize(12).TextColor(p.Danger).MaxLines(1)
 		}
 	})
 }
@@ -179,117 +212,151 @@ func (c *Controller) viewOutput(x *ui.Context, p theme.Palette) {
 	})
 }
 
+// refreshValidation starts a validation pass once the input has sat
+// still. The scan runs off the UI thread, so a large document never
+// stalls a frame.
 func (c *Controller) refreshValidation(x *ui.Context) {
 	version := c.input.Version()
+	c.mu.Lock()
 	if version != c.lastVersion {
 		c.lastVersion = version
 		c.pending = true
 		c.lastEdit = x.Now()
-		x.After(300 * time.Millisecond)
 	}
-	if !c.pending {
+	pending := c.pending
+	lastEdit := c.lastEdit
+	busy := c.busy
+	c.mu.Unlock()
+
+	if busy || !pending {
 		return
 	}
-	if x.Now().Sub(c.lastEdit) < 300*time.Millisecond {
+	if x.Now().Sub(lastEdit) < validateDelay {
 		x.After(50 * time.Millisecond)
 		return
 	}
-	c.pending = false
-	input := c.input.String()
-	if input == "" {
+
+	snap := c.input.Snapshot()
+	if snap.Len() > liveValidateLimit {
+		c.mu.Lock()
+		c.pending = false
 		c.valid = false
 		c.errorMessage = ""
+		c.skipped = true
+		c.mu.Unlock()
 		return
 	}
-	c.valid = IsValid(input)
-	c.errorMessage = ""
-	if !c.valid {
-		c.errorMessage = ErrorMessage(input)
+	c.mu.Lock()
+	c.pending = false
+	c.skipped = false
+	c.mu.Unlock()
+	if snap.Len() == 0 {
+		c.mu.Lock()
+		c.valid = false
+		c.errorMessage = ""
+		c.mu.Unlock()
+		return
 	}
+	input := snap.String()
+	go func() {
+		valid, message := Check(input)
+		c.applyValidation(snap.Version(), valid, message)
+	}()
 }
 
-func (c *Controller) requireInput(x *ui.Context) (string, bool) {
-	input := c.input.String()
-	if input == "" {
-		x.Toast("请输入 JSON 内容")
-		return "", false
+func (c *Controller) applyValidation(version uint64, valid bool, message string) {
+	c.mu.Lock()
+	if c.input.Version() != version {
+		c.mu.Unlock()
+		return
 	}
-	return input, true
+	c.valid = valid
+	c.errorMessage = message
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+// runAsync runs work off the UI thread and applies its result only when
+// the input was not edited while it ran; a stale result is dropped so a
+// slow repair never overwrites a newer text.
+func (c *Controller) runAsync(x *ui.Context, status string, work func(input string) (string, error), apply func(result string)) {
+	if c.input.Len() == 0 {
+		x.Toast("请输入 JSON 内容")
+		return
+	}
+	if !c.beginOp(status) {
+		return
+	}
+	snap := c.input.Snapshot()
+	if snap.Len() == 0 {
+		c.cancelOp()
+		return
+	}
+	input := snap.String()
+	version := snap.Version()
+	c.invalidate()
+	go func() {
+		result, err := work(input)
+		if c.input.Version() != version {
+			c.cancelOp()
+			return
+		}
+		if err != nil {
+			c.failOp(err.Error())
+			return
+		}
+		apply(result)
+	}()
 }
 
 func (c *Controller) runFormat(x *ui.Context) {
-	input, ok := c.requireInput(x)
-	if !ok {
-		return
-	}
-	result, err := Format(input, 2)
-	if err != nil {
-		c.errorMessage = err.Error()
-		c.status = ""
-		c.valid = false
-		return
-	}
-	c.input.Set(result)
-	c.output.Set(result)
-	c.valid = true
-	c.errorMessage = ""
-	c.status = "格式化完成"
+	c.runAsync(x, "格式化中…", func(input string) (string, error) {
+		return Format(input, 2)
+	}, func(result string) {
+		c.input.Set(result)
+		c.output.Set(result)
+		c.succeedOp("格式化完成")
+	})
 }
 
 func (c *Controller) runMinify(x *ui.Context) {
-	input, ok := c.requireInput(x)
-	if !ok {
-		return
-	}
-	result, err := Minify(input)
-	if err != nil {
-		c.errorMessage = err.Error()
-		c.status = ""
-		c.valid = false
-		return
-	}
-	c.output.Set(result)
-	c.valid = true
-	c.errorMessage = ""
-	c.status = "压缩完成"
+	c.runAsync(x, "压缩中…", func(input string) (string, error) {
+		return Minify(input)
+	}, func(result string) {
+		c.output.Set(result)
+		c.succeedOp("压缩完成")
+	})
 }
 
 func (c *Controller) runEscape(x *ui.Context) {
-	input, ok := c.requireInput(x)
-	if !ok {
-		return
-	}
-	c.input.Set(Escape(input))
-	c.status = "转义完成"
-	c.validateNow()
+	c.runAsync(x, "转义中…", func(input string) (string, error) {
+		return Escape(input), nil
+	}, func(result string) {
+		c.input.Set(result)
+		c.finishOp("转义完成")
+	})
 }
 
 func (c *Controller) runUnescape(x *ui.Context) {
-	input, ok := c.requireInput(x)
-	if !ok {
-		return
-	}
-	c.input.Set(Unescape(input))
-	c.status = "反转义完成"
-	c.validateNow()
+	c.runAsync(x, "反转义中…", func(input string) (string, error) {
+		return Unescape(input), nil
+	}, func(result string) {
+		c.input.Set(result)
+		c.finishOp("反转义完成")
+	})
 }
 
 func (c *Controller) runRepair(x *ui.Context) {
-	input, ok := c.requireInput(x)
-	if !ok {
-		return
-	}
-	repaired, ok := SmartRepair(input)
-	if !ok {
-		c.errorMessage = "无法自动修复该 JSON"
-		c.status = ""
-		c.valid = false
-		return
-	}
-	c.input.Set(repaired)
-	c.valid = true
-	c.errorMessage = ""
-	c.status = "JSON 修复成功"
+	c.runAsync(x, "正在修复…", func(input string) (string, error) {
+		repaired, ok := SmartRepair(input)
+		if !ok {
+			return "", errRepairFailed
+		}
+		return repaired, nil
+	}, func(result string) {
+		c.input.Set(result)
+		c.succeedOp("JSON 修复成功")
+	})
 }
 
 func (c *Controller) swap() {
@@ -297,8 +364,7 @@ func (c *Controller) swap() {
 	output := c.output.String()
 	c.input.Set(output)
 	c.output.Set(input)
-	c.status = "已交换"
-	c.validateNow()
+	c.finishOp("已交换")
 }
 
 func (c *Controller) copyOutput(x *ui.Context) {
@@ -348,24 +414,96 @@ func (c *Controller) copyText(x *ui.Context, text string) {
 func (c *Controller) clear() {
 	c.input.Reset("")
 	c.output.Reset("")
+	c.mu.Lock()
 	c.valid = false
 	c.errorMessage = ""
 	c.status = ""
+	c.message = ""
+	c.skipped = false
 	c.pending = false
 	c.lastVersion = c.input.Version()
+	c.mu.Unlock()
 }
 
-func (c *Controller) validateNow() {
-	input := c.input.String()
-	if input == "" {
-		c.valid = false
-		c.errorMessage = ""
-		return
+func (c *Controller) snapshot() statusSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return statusSnapshot{
+		valid:        c.valid,
+		errorMessage: c.errorMessage,
+		status:       c.status,
+		busy:         c.busy,
+		skipped:      c.skipped,
 	}
-	c.valid = IsValid(input)
+}
+
+func (c *Controller) takeMessage() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	message := c.message
+	c.message = ""
+	return message
+}
+
+func (c *Controller) beginOp(status string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.busy {
+		return false
+	}
+	c.busy = true
+	c.status = status
 	c.errorMessage = ""
-	if !c.valid {
-		c.errorMessage = ErrorMessage(input)
+	return true
+}
+
+// succeedOp ends an operation whose result is valid JSON.
+func (c *Controller) succeedOp(status string) {
+	c.mu.Lock()
+	c.busy = false
+	c.valid = true
+	c.errorMessage = ""
+	c.status = status
+	c.skipped = false
+	c.pending = false
+	c.lastVersion = c.input.Version()
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+// finishOp ends an operation whose result still has to be checked, as
+// escaping and swapping any text, so the next frame validates it.
+func (c *Controller) finishOp(status string) {
+	c.mu.Lock()
+	c.busy = false
+	c.status = status
+	c.errorMessage = ""
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+func (c *Controller) failOp(message string) {
+	c.mu.Lock()
+	c.busy = false
+	c.valid = false
+	c.errorMessage = message
+	c.status = ""
+	c.skipped = false
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+func (c *Controller) cancelOp() {
+	c.mu.Lock()
+	c.busy = false
+	c.status = "已取消：输入已修改"
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+func (c *Controller) invalidate() {
+	if c.deps.Invalidate != nil {
+		c.deps.Invalidate()
 	}
 }
 

@@ -1,6 +1,7 @@
 package json_formatter
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -41,6 +42,28 @@ func TestMinify(t *testing.T) {
 func TestFormatRejectsInvalid(t *testing.T) {
 	if _, err := Format(`{"a":}`, 2); err == nil {
 		t.Fatal("expected an error")
+	}
+	if _, err := Format(`{"a":1} x`, 2); err == nil {
+		t.Fatal("expected an error for trailing data")
+	}
+}
+
+func TestFormatKeepsEscapes(t *testing.T) {
+	got, err := Format(`{"a":"\u4e2d","b":"a\/b"}`, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `\u4e2d`) || !strings.Contains(got, `a\/b`) {
+		t.Fatalf("escapes changed:\n%s", got)
+	}
+}
+
+func TestCheck(t *testing.T) {
+	if valid, message := Check(`{"a":1}`); !valid || message != "" {
+		t.Fatalf("Check(valid) = %v, %q", valid, message)
+	}
+	if valid, message := Check(`{"a":}`); valid || !strings.Contains(message, "无效的JSON格式") {
+		t.Fatalf("Check(invalid) = %v, %q", valid, message)
 	}
 }
 
@@ -85,6 +108,45 @@ func TestErrorMessage(t *testing.T) {
 	}
 	if got := ErrorMessage(`{"a":1}`); got != "" {
 		t.Fatalf("valid message = %q", got)
+	}
+}
+
+// A truncated large document must still be repaired, by cutting back to
+// the last complete value, and it must not take the quadratic scan over
+// every character the old fallback made.
+func TestSmartRepairLargeTruncated(t *testing.T) {
+	var broken strings.Builder
+	broken.WriteByte('[')
+	for i := 0; i < 2000; i++ {
+		if i > 0 {
+			broken.WriteByte(',')
+		}
+		broken.WriteString(`{"id":`)
+		broken.WriteString(strconv.Itoa(i))
+		broken.WriteString(`,"name":"item-`)
+		broken.WriteString(strconv.Itoa(i))
+		broken.WriteString(`"}`)
+	}
+	broken.WriteString(`,{"id":2000,"name":"`)
+	broken.WriteString(strings.Repeat("x", 4096))
+	input := broken.String()
+	input = input[:len(input)-2048]
+	if IsValid(input) {
+		t.Fatal("test input is unexpectedly valid")
+	}
+
+	repaired, ok := SmartRepair(input)
+	if !ok {
+		t.Fatal("SmartRepair could not repair a truncated document")
+	}
+	if !IsValid(repaired) {
+		t.Fatalf("repaired JSON is invalid: %.120q", repaired)
+	}
+	if !strings.HasPrefix(repaired, `[{"id":0,`) {
+		t.Fatal("the repair did not keep the document's head")
+	}
+	if !strings.Contains(repaired, `{"id":1999,"name":"item-1999"}`) {
+		t.Fatal("the last complete element was dropped")
 	}
 }
 
