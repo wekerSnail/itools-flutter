@@ -319,6 +319,10 @@ func matchingBracket(text string, start int) int {
 // that would have repaired it is what comes out, without re-scanning the
 // document after each step.
 func SmartRepair(input string) (string, bool) {
+	return smartRepair(input, truncateBudget)
+}
+
+func smartRepair(input string, budget time.Duration) (string, bool) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return "", false
@@ -334,7 +338,7 @@ func SmartRepair(input string) (string, bool) {
 	if IsValid(repaired) {
 		return repaired, true
 	}
-	if truncated, ok := truncateAtLastValid(repaired); ok {
+	if truncated, ok := truncateAtLastValid(repaired, budget); ok {
 		return truncated, true
 	}
 	return "", false
@@ -542,9 +546,13 @@ func balanceBrackets(input string) string {
 const (
 	truncateCandidateCount = 32
 	truncateBudget         = 200 * time.Millisecond
+	// heavyTruncateBudget is for documents large enough that a single
+	// candidate scan outlasts truncateBudget. The work runs in the
+	// background, so a longer search costs no frame.
+	heavyTruncateBudget = 2 * time.Second
 )
 
-func truncateAtLastValid(input string) (string, bool) {
+func truncateAtLastValid(input string, budget time.Duration) (string, bool) {
 	candidates := make([]int, 0, truncateCandidateCount)
 	add := func(end int) {
 		if len(candidates) == truncateCandidateCount {
@@ -581,9 +589,13 @@ func truncateAtLastValid(input string) (string, bool) {
 		}
 	}
 
-	deadline := time.Now().Add(truncateBudget)
+	deadline := time.Now().Add(budget)
 	for i := len(candidates) - 1; i >= 0; i-- {
-		if time.Now().After(deadline) {
+		// The newest cut point is always tried, however large the
+		// document: cutting back to the last complete value is the common
+		// repair, and one pass over it is worth the wait in the
+		// background.
+		if i != len(candidates)-1 && time.Now().After(deadline) {
 			return "", false
 		}
 		candidate := balanceBrackets(input[:candidates[i]])

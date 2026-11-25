@@ -18,6 +18,13 @@ const (
 	// trigger a validation pass: scanning tens of megabytes after every
 	// keystroke only burns CPU, so the status bar says so instead.
 	liveValidateLimit = 8 << 20
+	// heavyRepairLimit is the input size from which a repair gives its
+	// truncation fallback the longer budget; the loading dialog itself
+	// follows the operation's actual duration, not its size.
+	heavyRepairLimit = 4 << 20
+	// loadingDelay keeps the dialog from flashing when an operation
+	// still finishes quickly.
+	loadingDelay = 150 * time.Millisecond
 	// validateDelay is how long the input must sit still before it is
 	// checked, as typing produces a new text every keystroke.
 	validateDelay = 300 * time.Millisecond
@@ -50,10 +57,15 @@ type Controller struct {
 	status       string
 	message      string
 	busy         bool
+	opStart      time.Time
 	skipped      bool
 	lastVersion  uint64
 	pending      bool
 	lastEdit     time.Time
+
+	// loadingOpen is the modal dialog's state; View alone reads and
+	// writes it, on the main thread.
+	loadingOpen bool
 }
 
 // statusSnapshot is the part of the state that View draws.
@@ -62,6 +74,7 @@ type statusSnapshot struct {
 	errorMessage string
 	status       string
 	busy         bool
+	opStart      time.Time
 	skipped      bool
 }
 
@@ -108,6 +121,7 @@ func (c *Controller) View(x *ui.Context) {
 			c.viewOutput(x, p)
 		}).Grow(1).Padding(0, 20, 16)
 	})
+	c.viewLoading(x, p, state)
 }
 
 func (c *Controller) viewToolbar(x *ui.Context, busy bool) {
@@ -181,6 +195,40 @@ func (c *Controller) viewStatus(x *ui.Context, p theme.Palette, st statusSnapsho
 		if st.errorMessage != "" {
 			ui.Text(x, st.errorMessage).FontSize(12).TextColor(p.Danger).MaxLines(1)
 		}
+	})
+}
+
+// viewLoading shows the loading dialog of an operation that outlasts
+// loadingDelay: the wait keeps it from flashing for quick work, and the
+// dialog stays while the operation runs in the background, so the window
+// remains responsive.
+func (c *Controller) viewLoading(x *ui.Context, p theme.Palette, st statusSnapshot) {
+	if !st.busy {
+		c.loadingOpen = false
+		return
+	}
+	if elapsed := x.Now().Sub(st.opStart); elapsed < loadingDelay {
+		x.After(loadingDelay - elapsed)
+		return
+	}
+	c.loadingOpen = true
+	ui.Modal(x, &c.loadingOpen, func() {
+		panel := ui.Box(x).
+			Width(320).
+			Background(p.Card).
+			Border(1, p.Border).
+			Radius(p.Radius).
+			Padding(20).
+			Gap(12)
+		panel.Children(func() {
+			ui.Row(x).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(x)
+				ui.Text(x, st.status).FontSize(14).FontWeight(600).TextColor(p.Foreground)
+			})
+			ui.Text(x, "正在后台处理，窗口不会卡住。").
+				FontSize(12).
+				TextColor(p.MutedForeground)
+		})
 	})
 }
 
@@ -284,7 +332,7 @@ func (c *Controller) runAsync(x *ui.Context, status string, work func(input stri
 		x.Toast("请输入 JSON 内容")
 		return
 	}
-	if !c.beginOp(status) {
+	if !c.beginOp(status, x.Now()) {
 		return
 	}
 	snap := c.input.Snapshot()
@@ -348,7 +396,11 @@ func (c *Controller) runUnescape(x *ui.Context) {
 
 func (c *Controller) runRepair(x *ui.Context) {
 	c.runAsync(x, "正在修复…", func(input string) (string, error) {
-		repaired, ok := SmartRepair(input)
+		budget := truncateBudget
+		if len(input) > heavyRepairLimit {
+			budget = heavyTruncateBudget
+		}
+		repaired, ok := smartRepair(input, budget)
 		if !ok {
 			return "", errRepairFailed
 		}
@@ -433,6 +485,7 @@ func (c *Controller) snapshot() statusSnapshot {
 		errorMessage: c.errorMessage,
 		status:       c.status,
 		busy:         c.busy,
+		opStart:      c.opStart,
 		skipped:      c.skipped,
 	}
 }
@@ -445,13 +498,14 @@ func (c *Controller) takeMessage() string {
 	return message
 }
 
-func (c *Controller) beginOp(status string) bool {
+func (c *Controller) beginOp(status string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.busy {
 		return false
 	}
 	c.busy = true
+	c.opStart = now
 	c.status = status
 	c.errorMessage = ""
 	return true
