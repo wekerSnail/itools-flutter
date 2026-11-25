@@ -29,9 +29,6 @@
 # 使用脚本（推荐）
 .\scripts\dev.ps1
 
-# 需要走本地代理下载依赖时
-.\scripts\dev.ps1 -Proxy http://127.0.0.1:7890
-
 # 或直接运行
 go run .
 ```
@@ -133,17 +130,6 @@ scripts/
 - 终端命令通过临时 `.cmd` 执行，变量按原版规则转义；超时使用 `taskkill /T /F` 终止进程树。
 - JSON 格式化保留键顺序与大整数精度，不使用 `map[string]any` 中转。
 - MyGo 固定为 `v0.10.0`；升级需单独评审并跑完整回归。
-
-## 依赖下载
-
-默认使用 `https://goproxy.cn,direct`。需要本地代理时：
-
-```powershell
-$env:GOPROXY = "https://goproxy.cn,direct"
-$env:HTTP_PROXY = "http://127.0.0.1:7890"
-$env:HTTPS_PROXY = "http://127.0.0.1:7890"
-go mod download
-```
 
 ## 许可证
 
