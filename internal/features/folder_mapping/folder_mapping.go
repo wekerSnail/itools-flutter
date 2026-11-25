@@ -4,6 +4,7 @@ package folder_mapping
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/egoist/mygo"
@@ -24,6 +25,13 @@ type Shortcut struct {
 	Name       string        `json:"name"`
 	TargetPath string        `json:"targetPath"`
 	CreatedAt  jsontime.Time `json:"createdAt"`
+}
+
+// shortcutDrag is what dragging a shortcut card carries, so that a drop on
+// another card moves it there.
+type shortcutDrag struct {
+	CollectionID string
+	ShortcutID   string
 }
 
 // Collection groups shortcuts.
@@ -77,6 +85,9 @@ type Controller struct {
 	notice        string
 
 	split float32
+	// collectionList keeps where the collection list is scrolled, and
+	// lets its rows be dragged to another place (ListState.Reorder).
+	collectionList ui.ListState
 }
 
 // New loads the collections and returns a controller.
@@ -117,56 +128,60 @@ func (c *Controller) View(x *ui.Context) {
 
 func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 	ui.Box(x).Fill().Padding(12).Children(func() {
-		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Gap(6).Children(func() {
-				if len(c.collections) == 0 {
-					ui.Text(x, "还没有集合").
+		if len(c.collections) == 0 {
+			ui.Text(x, "还没有集合").
+				FontSize(12).
+				TextColor(p.MutedForeground).
+				Padding(10)
+			return
+		}
+		// Dragging a row moves it before the row it is dropped on, as the
+		// list shows with its line while it is dragged.
+		c.collectionList.Key = func(row int) any { return c.collections[row].ID }
+		c.collectionList.Reorder = func(rows []int, to int) {
+			c.collections = moveBefore(c.collections, rows, to)
+			c.save()
+		}
+		ui.List(x, &c.collectionList, len(c.collections)).Grow(1).Rows(func(row ui.ListRow) {
+			collection := c.collections[row.Index]
+			selected := collection.ID == c.selectedID
+			content := ui.Row(row.Context).
+				FillWidth().
+				Padding(10).
+				Margin(3).
+				Radius(8).
+				AlignItems(ui.Center).
+				Gap(4).
+				OnClick(func() {
+					c.selectedID = collection.ID
+				})
+			switch {
+			case selected:
+				content.Background(p.Secondary)
+			case content.Hovered():
+				content.Background(p.Muted)
+			}
+			content.Children(func() {
+				ui.Column(row.Context).Grow(1).Gap(1).Children(func() {
+					ui.Text(row.Context, collection.Name).
+						FontSize(14).
+						FontWeight(600).
+						TextColor(p.Foreground).
+						MaxLines(1)
+					ui.Text(row.Context, fmt.Sprintf("%d 个快捷方式", len(collection.Items))).
 						FontSize(12).
-						TextColor(p.MutedForeground).
-						Padding(10)
-					return
-				}
-				for _, collection := range c.collections {
-					collection := collection
-					selected := collection.ID == c.selectedID
-					row := ui.Row(x).
-						FillWidth().
-						Padding(10).
-						Radius(8).
-						AlignItems(ui.Center).
-						Gap(4).
-						OnClick(func() {
-							c.selectedID = collection.ID
-						})
-					switch {
-					case selected:
-						row.Background(p.Secondary)
-					case row.Hovered():
-						row.Background(p.Muted)
-					}
-					row.Children(func() {
-						ui.Column(x).Grow(1).Gap(1).Children(func() {
-							ui.Text(x, collection.Name).
-								FontSize(14).
-								FontWeight(600).
-								TextColor(p.Foreground).
-								MaxLines(1)
-							ui.Text(x, fmt.Sprintf("%d 个快捷方式", len(collection.Items))).
-								FontSize(12).
-								TextColor(p.MutedForeground)
-						})
-						widgets.IconButton(x, p, "pencil", func() {
-							c.openCollectionForm(&collection)
-						})
-						widgets.IconButton(x, p, "trash-2", func() {
-							c.confirmDelete(
-								"确认删除集合",
-								fmt.Sprintf("确定要删除集合「%s」吗？此操作不可撤销。", collection.Name),
-								func() { c.deleteCollection(collection.ID) },
-							)
-						})
-					})
-				}
+						TextColor(p.MutedForeground)
+				})
+				widgets.IconButton(row.Context, p, "pencil", func() {
+					c.openCollectionForm(&collection)
+				})
+				widgets.IconButton(row.Context, p, "trash-2", func() {
+					c.confirmDelete(
+						"确认删除集合",
+						fmt.Sprintf("确定要删除集合「%s」吗？此操作不可撤销。", collection.Name),
+						func() { c.deleteCollection(collection.ID) },
+					)
+				})
 			})
 		})
 	})
@@ -218,8 +233,22 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 						Radius(p.Radius).
 						Background(p.Card).
 						Border(1, p.Border).
-						OnClick(func() {})
-					if card.Hovered() {
+						OnClick(func() {}).
+						Drag(shortcutDrag{CollectionID: collection.ID, ShortcutID: shortcut.ID})
+					dragged, over := ui.DragOver[shortcutDrag](card)
+					if dropped, ok := ui.Drop[shortcutDrag](card); ok {
+						c.reorderShortcut(dropped, collection.ID, shortcut.ID)
+						x.Invalidate()
+					}
+					if card.Dragging() {
+						card.Opacity(0.5)
+					}
+					switch {
+					case over && dragged.ShortcutID != shortcut.ID:
+						card.Background(p.CardHover)
+						card.Border(1, p.Ring)
+						card.Shadow(0, 2, 8, 0, p.Foreground.Alpha(0.08))
+					case card.Hovered():
 						card.Background(p.CardHover)
 						card.Border(1, p.Ring)
 						card.Shadow(0, 2, 8, 0, p.Foreground.Alpha(0.08))
@@ -489,6 +518,61 @@ func (c *Controller) deleteShortcut(collectionID, shortcutID string) {
 		break
 	}
 	c.save()
+}
+
+// moveBefore moves the items at rows before index to, as ListState.Reorder
+// asks: to counts the items before any moved, and the number of items for
+// the end.
+func moveBefore[T any](items []T, rows []int, to int) []T {
+	if len(rows) == 0 || len(items) == 0 {
+		return items
+	}
+	moved := make([]T, 0, len(rows))
+	rest := make([]T, 0, len(items))
+	at := -1
+	for i, item := range items {
+		if i == to {
+			at = len(rest)
+		}
+		if slices.Contains(rows, i) {
+			moved = append(moved, item)
+		} else {
+			rest = append(rest, item)
+		}
+	}
+	if at < 0 {
+		at = len(rest)
+	}
+	return slices.Insert(rest, at, moved...)
+}
+
+// reorderShortcut moves the dragged shortcut before the one it was dropped
+// on, when both are in the collection the drop was in.
+func (c *Controller) reorderShortcut(dragged shortcutDrag, collectionID, targetID string) {
+	if dragged.CollectionID != collectionID || dragged.ShortcutID == targetID {
+		return
+	}
+	for index := range c.collections {
+		if c.collections[index].ID != collectionID {
+			continue
+		}
+		items := c.collections[index].Items
+		from, to := -1, -1
+		for i := range items {
+			switch items[i].ID {
+			case dragged.ShortcutID:
+				from = i
+			case targetID:
+				to = i
+			}
+		}
+		if from < 0 || to < 0 {
+			return
+		}
+		c.collections[index].Items = moveBefore(items, []int{from}, to)
+		c.save()
+		return
+	}
 }
 
 func (c *Controller) confirmDelete(title, message string, action func()) {
