@@ -1,6 +1,6 @@
 {
   "name": "itools",
-  "identifier": "com.rydeen.itools",
+  "identifier": "com.snailer.itools",
   "version": "1.0.1",
   "out": "dist",
   "ios": { "minimumSystemVersion": "17.0" },
