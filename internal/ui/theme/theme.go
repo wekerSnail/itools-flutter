@@ -10,24 +10,122 @@ import (
 	"itools/internal/core/store"
 )
 
-// Style names a visual style.
-type Style string
+// Accent names a color the interface is drawn with.
+type Accent string
 
 const (
-	StyleModern Style = "modern"
-	StyleLuxury Style = "luxury"
+	// AccentSystem follows the desktop's accent color, falling back to blue.
+	AccentSystem Accent = "system"
+	AccentBlue   Accent = "blue"
+	AccentTeal   Accent = "teal"
+	AccentGreen  Accent = "green"
+	AccentIndigo Accent = "indigo"
+	AccentPurple Accent = "purple"
+	AccentPink   Accent = "pink"
+	AccentOrange Accent = "orange"
+	AccentRed    Accent = "red"
+	AccentGray   Accent = "gray"
 )
 
-// Mode names how the light or dark appearance is chosen.
+// AccentSpec is one choice of the accent picker.
+type AccentSpec struct {
+	ID   Accent
+	Name string
+	Base Color
+}
+
+// Accents are the accent choices, the system color first as the default.
+var Accents = []AccentSpec{
+	{AccentSystem, "跟随系统", ui.Hex("#0078D4")},
+	{AccentBlue, "蓝色", ui.Hex("#0078D4")},
+	{AccentTeal, "青色", ui.Hex("#00B7C3")},
+	{AccentGreen, "绿色", ui.Hex("#10B981")},
+	{AccentIndigo, "靛蓝", ui.Hex("#6366F1")},
+	{AccentPurple, "紫色", ui.Hex("#8764B8")},
+	{AccentPink, "粉色", ui.Hex("#E3008C")},
+	{AccentOrange, "橙色", ui.Hex("#F97316")},
+	{AccentRed, "红色", ui.Hex("#EF4444")},
+	{AccentGray, "灰色", ui.Hex("#69797E")},
+}
+
+// DefaultAccent is the accent a window draws with until one is picked.
+var DefaultAccent = Accents[0]
+
+// LookupAccent returns the spec of an accent, the default for an unknown one.
+func LookupAccent(a Accent) AccentSpec {
+	for _, spec := range Accents {
+		if spec.ID == a {
+			return spec
+		}
+	}
+	return DefaultAccent
+}
+
+// AccentName is the label the settings show for an accent.
+func AccentName(a Accent) string { return LookupAccent(a).Name }
+
+// Mode names how the appearance is chosen.
 type Mode string
 
 const (
 	ModeLight  Mode = "light"
 	ModeDark   Mode = "dark"
+	ModeBlack  Mode = "black"
 	ModeSystem Mode = "system"
 )
 
-// Palette is the app's color set for one style and appearance.
+// ModeName is the label the settings show for a mode.
+func ModeName(m Mode) string {
+	switch m {
+	case ModeLight:
+		return "亮色"
+	case ModeDark:
+		return "深色"
+	case ModeBlack:
+		return "纯黑"
+	default:
+		return "跟随系统"
+	}
+}
+
+// Type sizes, in DIPs.
+const (
+	FontSizeTiny    float32 = 11
+	FontSizeBody    float32 = 13
+	FontSizeTitle   float32 = 15
+	FontSizeHeading float32 = 18
+	FontSizeDisplay float32 = 22
+)
+
+// Metrics, in DIPs, as ApiGo's interface measures.
+const (
+	HeaderHeight    float32 = 48
+	ToolbarHeight   float32 = 40
+	StatusBarHeight float32 = 32
+	ControlHeight   float32 = 32
+	ControlPaddingX float32 = 14
+	IconButtonSize  float32 = 28
+	ListRowHeight   float32 = 52
+	PagePadding     float32 = 20
+)
+
+// Radii, in DIPs.
+const (
+	RadiusCard    float32 = 6
+	RadiusSmall   float32 = 4
+	RadiusControl float32 = 4
+	RadiusDialog  float32 = 8
+	RadiusIconBox float32 = 6
+)
+
+// FontName is the family of the embedded interface font.
+const FontName = "Inter Variable"
+
+// FontFamily is the family the app draws with: the embedded Inter Variable,
+// with the system's sans-serif fonts for the glyphs it does not cover.
+const FontFamily = FontName + ", sans-serif"
+
+// Palette is the app's color set for one appearance.
 type Palette struct {
 	Dark bool
 
@@ -47,9 +145,13 @@ type Palette struct {
 
 	Muted           Color
 	MutedForeground Color
+	// SubtleForeground colors captions and hints at 11 DIPs.
+	SubtleForeground Color
 
-	Border    Color
-	Ring      Color
+	Border  Color
+	Divider Color
+	Ring    Color
+
 	Selection Color
 	Danger    Color
 	Success   Color
@@ -63,109 +165,102 @@ type Color = ui.Color
 
 const themePath = "settings/theme.json"
 
-// BuildPalette returns the palette of a style and appearance.
-func BuildPalette(style Style, dark bool) Palette {
-	var p Palette
-	switch style {
-	case StyleLuxury:
-		p = luxuryPalette(dark)
+// BuildPalette returns the palette of an accent and appearance, the system
+// accent resolving to blue where no desktop accent is available.
+func BuildPalette(accent Accent, dark bool) Palette {
+	return buildPalette(LookupAccent(accent).Base, dark, false)
+}
+
+// BuildPaletteFor returns the palette of an accent in a mode, taking the
+// desktop's accent color when the accent is AccentSystem.
+func BuildPaletteFor(accent Accent, system Color, mode Mode) Palette {
+	base := LookupAccent(accent).Base
+	if accent == AccentSystem && system.A > 0 {
+		base = system
+	}
+	switch mode {
+	case ModeBlack:
+		return buildPalette(base, true, true)
+	case ModeDark:
+		return buildPalette(base, true, false)
+	case ModeLight:
+		return buildPalette(base, false, false)
 	default:
-		p = modernPalette(dark)
+		return buildPalette(base, false, false)
 	}
-	p.Dark = dark
-	if style == StyleLuxury {
-		p.Radius = 16
-	} else {
-		p.Radius = 12
+}
+
+func buildPalette(accent Color, dark, black bool) Palette {
+	p := Palette{Dark: dark, Radius: RadiusCard}
+	switch {
+	case black:
+		p.Background = ui.Hex("#0F0F0F")
+		p.Foreground = ui.Hex("#FAFAFA")
+		p.Card = ui.Hex("#171717")
+		p.CardHover = ui.Hex("#1F1F1F")
+		p.CardPress = ui.Hex("#27272A")
+		p.Muted = ui.Hex("#1F1F1F")
+		p.MutedForeground = ui.Hex("#A1A1AA")
+		p.SubtleForeground = ui.Hex("#71717A")
+		p.Border = ui.Hex("#2A2A2E")
+		p.Divider = ui.Hex("#1F1F1F")
+	case dark:
+		p.Background = ui.Hex("#181818")
+		p.Foreground = ui.Hex("#FAFAFA")
+		p.Card = ui.Hex("#1C1C1E")
+		p.CardHover = ui.Hex("#262626")
+		p.CardPress = ui.Hex("#2F2F33")
+		p.Muted = ui.Hex("#262626")
+		p.MutedForeground = ui.Hex("#A3A3A3")
+		p.SubtleForeground = ui.Hex("#737373")
+		p.Border = ui.Hex("#2F2F33")
+		p.Divider = ui.Hex("#1F1F1F")
+	default:
+		p.Background = ui.Hex("#FFFFFF")
+		p.Foreground = ui.Hex("#111827")
+		p.Card = ui.Hex("#FAFAFA")
+		p.CardHover = ui.Hex("#F3F4F6")
+		p.CardPress = ui.Hex("#E5E7EB")
+		p.Muted = ui.Hex("#F3F4F6")
+		p.MutedForeground = ui.Hex("#6B7280")
+		p.SubtleForeground = ui.Hex("#9CA3AF")
+		p.Border = ui.Hex("#E5E7EB")
+		p.Divider = ui.Hex("#F3F4F6")
 	}
-	p.CardHover = p.Card.Mix(p.Foreground, 0.04)
-	p.CardPress = p.Card.Mix(p.Foreground, 0.08)
-	if dark {
-		p.PrimaryHover = p.Primary.Mix(ui.RGB(255, 255, 255), 0.12)
-		p.PrimaryPressed = p.Primary.Mix(ui.RGB(255, 255, 255), 0.20)
-	} else {
-		p.PrimaryHover = p.Primary.Mix(ui.RGB(0, 0, 0), 0.10)
-		p.PrimaryPressed = p.Primary.Mix(ui.RGB(0, 0, 0), 0.18)
-	}
+	p.Danger = ui.Hex("#EF4444")
+	p.Success = ui.Hex("#22C55E")
+	p.Warning = ui.Hex("#F59E0B")
+	applyAccent(&p, accent, dark)
 	return p
 }
 
-func modernPalette(dark bool) Palette {
-	if dark {
-		return Palette{
-			Background:          ui.Hex("#0F0F1A"),
-			Foreground:          ui.Hex("#E2E8F0"),
-			Card:                ui.Hex("#1A1A2E"),
-			Primary:             ui.Hex("#818CF8"),
-			PrimaryForeground:   ui.Hex("#0F0F1A"),
-			Secondary:           ui.Hex("#1E1B4B"),
-			SecondaryForeground: ui.Hex("#A5B4FC"),
-			Muted:               ui.Hex("#1E293B"),
-			MutedForeground:     ui.Hex("#94A3B8"),
-			Border:              ui.Hex("#2D2B5E"),
-			Ring:                ui.Hex("#818CF8"),
-			Selection:           ui.Hex("#3730A3"),
-			Danger:              ui.Hex("#F87171"),
-			Success:             ui.Hex("#22C55E"),
-			Warning:             ui.Hex("#F59E0B"),
-		}
+// applyAccent derives the accent, its shades and the tints of selections from
+// the base color, as ApiGo's design system does.
+func applyAccent(p *Palette, base Color, dark bool) {
+	white := ui.RGB(255, 255, 255)
+	black := ui.RGB(0, 0, 0)
+	p.Primary = base
+	p.PrimaryHover = base.Mix(white, 0.18)
+	p.PrimaryPressed = base.Mix(black, 0.18)
+	p.PrimaryForeground = white
+	if luminance(base) > 150 {
+		p.PrimaryForeground = ui.Hex("#111827")
 	}
-	return Palette{
-		Background:          ui.Hex("#F8F9FE"),
-		Foreground:          ui.Hex("#1A1A2E"),
-		Card:                ui.Hex("#FFFFFF"),
-		Primary:             ui.Hex("#6366F1"),
-		PrimaryForeground:   ui.Hex("#FFFFFF"),
-		Secondary:           ui.Hex("#EEF2FF"),
-		SecondaryForeground: ui.Hex("#4338CA"),
-		Muted:               ui.Hex("#F1F5F9"),
-		MutedForeground:     ui.Hex("#64748B"),
-		Border:              ui.Hex("#E2E8F0"),
-		Ring:                ui.Hex("#6366F1"),
-		Selection:           ui.Hex("#C7D2FE"),
-		Danger:              ui.Hex("#EF4444"),
-		Success:             ui.Hex("#22C55E"),
-		Warning:             ui.Hex("#F59E0B"),
+	p.Secondary = base.Alpha(0.12)
+	p.SecondaryForeground = base
+	if dark {
+		p.Selection = base.Alpha(0.32)
+		p.Ring = base.Alpha(0.65)
+	} else {
+		p.Selection = base.Alpha(0.22)
+		p.Ring = base.Alpha(0.55)
 	}
 }
 
-func luxuryPalette(dark bool) Palette {
-	if dark {
-		return Palette{
-			Background:          ui.Hex("#1A1814"),
-			Foreground:          ui.Hex("#E8E0D8"),
-			Card:                ui.Hex("#242018"),
-			Primary:             ui.Hex("#D4C5B2"),
-			PrimaryForeground:   ui.Hex("#1A1814"),
-			Secondary:           ui.Hex("#2A2520"),
-			SecondaryForeground: ui.Hex("#C4B5A2"),
-			Muted:               ui.Hex("#2A2520"),
-			MutedForeground:     ui.Hex("#8C8070"),
-			Border:              ui.Hex("#3A3530"),
-			Ring:                ui.Hex("#D4C5B2"),
-			Selection:           ui.Hex("#5C4A3A"),
-			Danger:              ui.Hex("#F87171"),
-			Success:             ui.Hex("#22C55E"),
-			Warning:             ui.Hex("#F59E0B"),
-		}
-	}
-	return Palette{
-		Background:          ui.Hex("#FAF8F5"),
-		Foreground:          ui.Hex("#2C2C2C"),
-		Card:                ui.Hex("#FFFFFF"),
-		Primary:             ui.Hex("#8B7355"),
-		PrimaryForeground:   ui.Hex("#FFFFFF"),
-		Secondary:           ui.Hex("#F5F0EB"),
-		SecondaryForeground: ui.Hex("#5C4A3A"),
-		Muted:               ui.Hex("#F0EBE3"),
-		MutedForeground:     ui.Hex("#8C8C8C"),
-		Border:              ui.Hex("#E5DDD5"),
-		Ring:                ui.Hex("#8B7355"),
-		Selection:           ui.Hex("#D4C5B2"),
-		Danger:              ui.Hex("#B91C1C"),
-		Success:             ui.Hex("#16A34A"),
-		Warning:             ui.Hex("#D97706"),
-	}
+// luminance is the color's perceived brightness, from 0 (black) to 255
+// (white), as a threshold for the text that reads on it.
+func luminance(c Color) float32 {
+	return 0.2126*float32(c.R) + 0.7152*float32(c.G) + 0.0722*float32(c.B)
 }
 
 // Theme turns a palette into the theme MyGo widgets draw with.
@@ -186,29 +281,42 @@ func BuildTheme(p Palette) *ui.Theme {
 	t.AccentHover = p.PrimaryHover
 	t.AccentPressed = p.PrimaryPressed
 	t.AccentText = p.PrimaryForeground
+	t.InactiveAccent = p.Primary
 	t.Danger = p.Danger
 	t.Success = p.Success
 	t.Warning = p.Warning
 	t.Selection = p.Selection
 	t.Focus = p.Ring
-	t.Radius = p.Radius
+	// Controls (buttons, inputs, selects, segments) take the tighter radius
+	// ApiGo draws them with; cards keep the palette's own.
+	t.Radius = RadiusControl
 	t.Spacing = 4
+	t.Font = FontFamily
+	t.FontSize = FontSizeBody
+	if p.Dark {
+		t.Scrollbar = ui.RGBA(255, 255, 255, 0.30)
+	} else {
+		t.Scrollbar = ui.RGBA(0, 0, 0, 0.28)
+	}
 	return &t
 }
 
 type themeFile struct {
-	Style string `json:"themeStyle"`
-	Mode  string `json:"themeMode"`
+	Accent string `json:"themeAccent"`
+	Mode   string `json:"themeMode"`
+	// Style is the pre-ApiGo style key, kept so old files load without error.
+	Style string `json:"themeStyle,omitempty"`
 }
 
 // Manager loads, saves and applies the current theme.
 type Manager struct {
-	mu         sync.RWMutex
-	store      *store.Store
-	style      Style
-	mode       Mode
-	systemDark func() bool
-	listeners  []func()
+	mu           sync.RWMutex
+	store        *store.Store
+	accent       Accent
+	mode         Mode
+	systemAccent Color
+	systemDark   func() bool
+	listeners    []func()
 }
 
 // NewManager returns a manager that reads the system appearance through
@@ -219,13 +327,14 @@ func NewManager(st *store.Store, systemDark func() bool) *Manager {
 	}
 	return &Manager{
 		store:      st,
-		style:      StyleModern,
+		accent:     DefaultAccent.ID,
 		mode:       ModeSystem,
 		systemDark: systemDark,
 	}
 }
 
-// Load reads settings/theme.json, tolerating a missing or corrupted file.
+// Load reads settings/theme.json, tolerating a missing or corrupted file and
+// files written by versions with the old style keys.
 func (m *Manager) Load() error {
 	if m.store == nil {
 		return nil
@@ -243,15 +352,23 @@ func (m *Manager) Load() error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	switch Style(f.Style) {
-	case StyleModern, StyleLuxury:
-		m.style = Style(f.Style)
+	if a := Accent(f.Accent); validAccent(a) {
+		m.accent = a
 	}
 	switch Mode(f.Mode) {
-	case ModeLight, ModeDark, ModeSystem:
+	case ModeLight, ModeDark, ModeBlack, ModeSystem:
 		m.mode = Mode(f.Mode)
 	}
 	return nil
+}
+
+func validAccent(a Accent) bool {
+	for _, spec := range Accents {
+		if spec.ID == a {
+			return true
+		}
+	}
+	return false
 }
 
 // Save writes settings/theme.json.
@@ -260,7 +377,7 @@ func (m *Manager) Save() error {
 		return nil
 	}
 	m.mu.RLock()
-	f := themeFile{Style: string(m.style), Mode: string(m.mode)}
+	f := themeFile{Accent: string(m.accent), Mode: string(m.mode)}
 	m.mu.RUnlock()
 	data, err := json.Marshal(f)
 	if err != nil {
@@ -269,11 +386,11 @@ func (m *Manager) Save() error {
 	return m.store.Write(themePath, data)
 }
 
-// Style returns the current style.
-func (m *Manager) Style() Style {
+// Accent returns the current accent choice.
+func (m *Manager) Accent() Accent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.style
+	return m.accent
 }
 
 // Mode returns the current appearance mode.
@@ -283,15 +400,18 @@ func (m *Manager) Mode() Mode {
 	return m.mode
 }
 
-// SetStyle changes the style and persists it.
-func (m *Manager) SetStyle(style Style) error {
+// SetAccent changes the accent and persists it.
+func (m *Manager) SetAccent(accent Accent) error {
+	if !validAccent(accent) {
+		accent = DefaultAccent.ID
+	}
 	m.mu.Lock()
-	previous := m.style
-	m.style = style
+	previous := m.accent
+	m.accent = accent
 	m.mu.Unlock()
 	if err := m.Save(); err != nil {
 		m.mu.Lock()
-		m.style = previous
+		m.accent = previous
 		m.mu.Unlock()
 		return err
 	}
@@ -315,13 +435,26 @@ func (m *Manager) SetMode(mode Mode) error {
 	return nil
 }
 
+// SetSystemAccent remembers the desktop's accent color, as Apply reads it.
+func (m *Manager) SetSystemAccent(c Color) {
+	if c.A == 0 {
+		return
+	}
+	m.mu.Lock()
+	m.systemAccent = c
+	m.mu.Unlock()
+}
+
 // IsDark reports whether the resolved appearance is dark.
 func (m *Manager) IsDark() bool {
 	m.mu.RLock()
-	mode := m.mode
-	m.mu.RUnlock()
-	switch mode {
-	case ModeDark:
+	defer m.mu.RUnlock()
+	return m.darkLocked()
+}
+
+func (m *Manager) darkLocked() bool {
+	switch m.mode {
+	case ModeDark, ModeBlack:
 		return true
 	case ModeLight:
 		return false
@@ -330,9 +463,19 @@ func (m *Manager) IsDark() bool {
 	}
 }
 
-// Palette returns the palette for the current style and appearance.
+// Palette returns the palette for the current accent and appearance.
 func (m *Manager) Palette() Palette {
-	return BuildPalette(m.Style(), m.IsDark())
+	m.mu.RLock()
+	accent, mode, system := m.accent, m.mode, m.systemAccent
+	dark := m.darkLocked()
+	m.mu.RUnlock()
+	if mode == ModeSystem {
+		mode = ModeLight
+		if dark {
+			mode = ModeDark
+		}
+	}
+	return BuildPaletteFor(accent, system, mode)
 }
 
 // Theme returns the MyGo theme for the current palette.
@@ -340,12 +483,17 @@ func (m *Manager) Theme() *ui.Theme {
 	return BuildTheme(m.Palette())
 }
 
-// Apply sets the window's theme.
+// Apply sets the window's theme, reading the desktop's accent color first
+// when the accent follows the system.
 func (m *Manager) Apply(c *ui.Context) {
+	if m.Accent() == AccentSystem {
+		m.SetSystemAccent(c.Preferences().Accent)
+	}
 	c.SetTheme(m.Theme())
 }
 
-// OnChange registers a listener called after a successful style or mode change.
+// OnChange registers a listener called after a successful accent or mode
+// change.
 func (m *Manager) OnChange(fn func()) {
 	if fn == nil {
 		return

@@ -2,13 +2,14 @@ package json_formatter
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
-	"itools/internal/ui/icons"
 	"itools/internal/ui/theme"
 	"itools/internal/ui/widgets"
 )
@@ -66,6 +67,18 @@ type Controller struct {
 	// loadingOpen is the modal dialog's state; View alone reads and
 	// writes it, on the main thread.
 	loadingOpen bool
+
+	// marks are the issues the last check found, at markVersion. An edit
+	// makes them stale, so View drops them instead of drawing ranges
+	// that no longer point at what they marked.
+	markVersion uint64
+	marks       []Issue
+	// reveal asks the next frame to scroll to marks[0]: the check ran off
+	// the UI thread, which cannot move the view itself.
+	reveal bool
+	// painted is the version whose marks the input view shows, so View
+	// sets them when they change rather than on every frame.
+	painted uint64
 }
 
 // statusSnapshot is the part of the state that View draws.
@@ -109,52 +122,59 @@ func (c *Controller) View(x *ui.Context) {
 	c.outputView.Theme = tokenTheme
 	c.inputView.ContextMenu = c.jsonMenu(x, c.inputView)
 	c.outputView.ContextMenu = c.jsonMenu(x, c.outputView)
+	c.applyMarks(p)
 
 	state := c.snapshot()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "JSON 格式化", "格式化、压缩、转义及智能修复", nil, nil)
-		c.viewToolbar(x, state.busy)
+		c.viewToolbar(x, p, state.busy)
 		c.viewStatus(x, p, state)
 		ui.SplitPercent(x, &c.split, func() {
 			c.viewInput(x, p)
 		}, func() {
 			c.viewOutput(x, p)
-		}).Grow(1).Padding(0, 20, 16)
+		}).Grow(1).Padding(0, theme.PagePadding, 16)
 	})
 	c.viewLoading(x, p, state)
 }
 
-func (c *Controller) viewToolbar(x *ui.Context, busy bool) {
-	ui.Row(x).FillWidth().Wrap().Gap(6).Padding(12, 20).Children(func() {
-		ui.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
-			c.runFormat(x)
+func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette, busy bool) {
+	ui.Column(x).FillWidth().Children(func() {
+		ui.Row(x).FillWidth().Wrap().Gap(8).Padding(4, theme.PagePadding).Background(p.Background).Children(func() {
+			widgets.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
+				c.runFormat(x)
+			})
+			widgets.Button(x, "压缩").Disabled(busy).OnClick(func() {
+				c.runMinify(x)
+			})
+			widgets.Button(x, "转义").Disabled(busy).OnClick(func() {
+				c.runEscape(x)
+			})
+			widgets.Button(x, "反转义").Disabled(busy).OnClick(func() {
+				c.runUnescape(x)
+			})
+			widgets.Button(x, "智能修复").Disabled(busy).OnClick(func() {
+				c.runRepair(x)
+			})
+			widgets.Button(x, "JSON 校验").Disabled(busy).OnClick(func() {
+				c.runCheck(x)
+			})
+			widgets.Button(x, "交换").Disabled(busy).OnClick(func() {
+				c.swap()
+			})
+			widgets.Button(x, "复制").OnClick(func() {
+				c.copyOutput(x)
+			})
+			widgets.Button(x, "清空").Disabled(busy).OnClick(func() {
+				c.clear()
+			})
+			widgets.Button(x, "新窗口").OnClick(func() {
+				if c.deps.OpenNewWindow != nil {
+					c.deps.OpenNewWindow()
+				}
+			})
 		})
-		ui.Button(x, "压缩").Disabled(busy).OnClick(func() {
-			c.runMinify(x)
-		})
-		ui.Button(x, "转义").Disabled(busy).OnClick(func() {
-			c.runEscape(x)
-		})
-		ui.Button(x, "反转义").Disabled(busy).OnClick(func() {
-			c.runUnescape(x)
-		})
-		ui.Button(x, "智能修复").Disabled(busy).OnClick(func() {
-			c.runRepair(x)
-		})
-		ui.Button(x, "交换").Disabled(busy).OnClick(func() {
-			c.swap()
-		})
-		ui.Button(x, "复制").OnClick(func() {
-			c.copyOutput(x)
-		})
-		ui.Button(x, "清空").Disabled(busy).OnClick(func() {
-			c.clear()
-		})
-		ui.Button(x, "新窗口").OnClick(func() {
-			if c.deps.OpenNewWindow != nil {
-				c.deps.OpenNewWindow()
-			}
-		})
+		widgets.Divider(x, p)
 	})
 }
 
@@ -162,38 +182,32 @@ func (c *Controller) viewStatus(x *ui.Context, p theme.Palette, st statusSnapsho
 	hasInput := c.input.Len() > 0
 	bar := ui.Row(x).
 		FillWidth().
-		Margin(8, 20).
-		Padding(6, 10).
-		Radius(8).
-		Background(p.Muted).
-		Border(1, p.Border).
+		Height(theme.StatusBarHeight).
+		Padding(0, theme.PagePadding).
 		AlignItems(ui.Center).
-		Gap(6)
+		Gap(8)
 	bar.Children(func() {
 		switch {
 		case st.busy:
-			ui.Text(x, st.status).FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, st.status).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		case !hasInput:
-			ui.Text(x, "等待输入").FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "等待输入").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		case st.skipped && !st.valid:
-			ui.Text(x, "大文件：编辑后不自动校验").FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "大文件：编辑后不自动校验").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		default:
-			icon := "x"
 			color := p.Danger
 			label := "JSON 无效"
 			if st.valid {
-				icon = "check"
 				color = p.Success
 				label = "JSON 有效"
 			}
-			ui.Icon(x, icons.Must(icon)).Width(14).Height(14).TextColor(color)
-			ui.Text(x, label).FontSize(12).TextColor(color)
+			widgets.StatusBadge(x, p, label, color)
 		}
 		if !st.busy && st.status != "" {
-			ui.Text(x, "· "+st.status).FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "· "+st.status).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		}
 		if st.errorMessage != "" {
-			ui.Text(x, st.errorMessage).FontSize(12).TextColor(p.Danger).MaxLines(1)
+			ui.Text(x, st.errorMessage).FontSize(theme.FontSizeTiny).TextColor(p.Danger).MaxLines(1)
 		}
 	})
 }
@@ -215,30 +229,26 @@ func (c *Controller) viewLoading(x *ui.Context, p theme.Palette, st statusSnapsh
 	ui.Modal(x, &c.loadingOpen, func() {
 		panel := ui.Box(x).
 			Width(320).
-			Background(p.Card).
-			Border(1, p.Border).
-			Radius(p.Radius).
-			Padding(20).
 			Gap(12)
 		panel.Children(func() {
 			ui.Row(x).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(x)
-				ui.Text(x, st.status).FontSize(14).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, st.status).FontSize(theme.FontSizeTitle).FontWeight(600).TextColor(p.Foreground)
 			})
 			ui.Text(x, "正在后台处理，窗口不会卡住。").
-				FontSize(12).
-				TextColor(p.MutedForeground)
+				FontSize(theme.FontSizeTiny).
+				TextColor(p.SubtleForeground)
 		})
 	})
 }
 
 func (c *Controller) viewInput(x *ui.Context, p theme.Palette) {
 	ui.Column(x).Fill().Gap(6).Children(func() {
-		ui.Text(x, "输入").FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, "输入")
 		ui.Box(x).
 			Fill().
 			Border(1, p.Border).
-			Radius(8).
+			Radius(p.Radius).
 			Clip().
 			Children(func() {
 				editor.View(x, c.inputView).Fill()
@@ -248,11 +258,11 @@ func (c *Controller) viewInput(x *ui.Context, p theme.Palette) {
 
 func (c *Controller) viewOutput(x *ui.Context, p theme.Palette) {
 	ui.Column(x).Fill().Gap(6).Children(func() {
-		ui.Text(x, "输出").FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, "输出")
 		ui.Box(x).
 			Fill().
 			Border(1, p.Border).
-			Radius(8).
+			Radius(p.Radius).
 			Clip().
 			Children(func() {
 				editor.View(x, c.outputView).Fill()
@@ -411,6 +421,124 @@ func (c *Controller) runRepair(x *ui.Context) {
 	})
 }
 
+// runCheck marks the errors of the input and scrolls to the first of
+// them. It never repairs: the marked text stays as it is, for the user
+// to fix.
+func (c *Controller) runCheck(x *ui.Context) {
+	snap := c.input.Snapshot()
+	if snap.Len() == 0 {
+		x.Toast("请输入 JSON 内容")
+		return
+	}
+	if snap.Len() > liveValidateLimit {
+		x.Toast("内容过大，无法自动校验")
+		return
+	}
+	input, version := snap.String(), snap.Version()
+	go func() {
+		issue, found := Locate(input)
+		c.applyCheck(version, issue, found)
+	}()
+}
+
+// applyCheck keeps the issues a check found, for View to mark and reveal.
+// A result of an older text is dropped, as it marks bytes that changed.
+func (c *Controller) applyCheck(version uint64, issue Issue, found bool) {
+	message := ""
+	if found {
+		message = fmt.Sprintf("第 %d 行第 %d 列：%s", issue.Line, c.displayCol(issue), issue.Message)
+	}
+	c.mu.Lock()
+	if c.input.Version() != version {
+		c.mu.Unlock()
+		return
+	}
+	c.markVersion = version
+	if found {
+		c.marks = []Issue{issue}
+		c.reveal = true
+		c.valid = false
+		c.errorMessage = issue.Message
+		c.status = ""
+		c.skipped = false
+		c.message = message
+	} else {
+		c.marks, c.reveal = nil, false
+		c.valid = true
+		c.errorMessage = ""
+		c.status = "校验通过"
+		c.skipped = false
+		c.message = "JSON 有效"
+	}
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+// displayCol turns the byte column of an issue into the column a reader
+// counts, in runes: the editor's Pos and Locate both count bytes.
+func (c *Controller) displayCol(issue Issue) int {
+	if issue.Col < 1 || issue.Line < 1 || issue.Line > c.input.LineCount() {
+		return issue.Col
+	}
+	line := c.input.Line(issue.Line - 1)
+	if issue.Col-1 > len(line) {
+		return issue.Col
+	}
+	return utf8.RuneCountInString(line[:issue.Col-1]) + 1
+}
+
+// applyMarks marks the issues of the last check in the input view and,
+// when the check asked for it, scrolls to the first one.
+func (c *Controller) applyMarks(p theme.Palette) {
+	version := c.input.Version()
+	c.mu.Lock()
+	marks, reveal := c.marks, c.reveal
+	if c.markVersion != version {
+		marks, reveal = nil, false
+		c.marks, c.markVersion, c.reveal = nil, 0, false
+	}
+	c.reveal = false
+	c.mu.Unlock()
+
+	if len(marks) == 0 {
+		if c.painted != 0 {
+			c.inputView.SetDiagnostics(version, nil)
+			c.inputView.GutterMarks = nil
+			c.inputView.LineBackgrounds = nil
+			c.painted = 0
+		}
+		return
+	}
+	if c.painted != version {
+		c.painted = version
+		diags := make([]editor.Diagnostic, 0, len(marks))
+		gutter := make([]editor.GutterMark, 0, len(marks))
+		backgrounds := make([]editor.LineBackground, 0, len(marks))
+		for _, issue := range marks {
+			diags = append(diags, editor.Diagnostic{
+				Start:    issue.Start,
+				End:      issue.End,
+				Severity: editor.SeverityError,
+				Message:  issue.Message,
+				Source:   "JSON",
+			})
+			line := issue.Line - 1
+			gutter = append(gutter, editor.GutterMark{Line: line, Color: p.Danger})
+			backgrounds = append(backgrounds, editor.LineBackground{
+				First: line,
+				Last:  line,
+				Color: p.Danger.Alpha(0.12),
+			})
+		}
+		c.inputView.SetDiagnostics(version, diags)
+		c.inputView.GutterMarks = gutter
+		c.inputView.LineBackgrounds = backgrounds
+	}
+	if reveal {
+		c.inputView.GoTo(editor.Pos{Line: marks[0].Line - 1, Col: marks[0].Col - 1})
+	}
+}
+
 func (c *Controller) swap() {
 	input := c.input.String()
 	output := c.output.String()
@@ -474,6 +602,9 @@ func (c *Controller) clear() {
 	c.skipped = false
 	c.pending = false
 	c.lastVersion = c.input.Version()
+	c.markVersion = 0
+	c.marks = nil
+	c.reveal = false
 	c.mu.Unlock()
 }
 

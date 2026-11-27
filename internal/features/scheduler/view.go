@@ -55,9 +55,12 @@ type draft struct {
 type Controller struct {
 	deps Deps
 
-	page     page
-	editing  *draft
-	logState ui.ListState
+	page page
+	// direction is which way the next page slides: 1 into the editor or the
+	// logs, -1 back to the list.
+	direction int
+	editing   *draft
+	logState  ui.ListState
 
 	confirm     bool
 	confirmID   string
@@ -67,7 +70,7 @@ type Controller struct {
 
 // NewController returns a scheduler controller.
 func NewController(deps Deps) *Controller {
-	return &Controller{deps: deps}
+	return &Controller{deps: deps, direction: 1}
 }
 
 // Close releases the controller.
@@ -80,45 +83,20 @@ func (c *Controller) View(x *ui.Context) {
 		x.Toast(c.toast)
 		c.toast = ""
 	}
-	switch c.page {
-	case pageEditor:
-		if c.editing == nil {
-			c.page = pageList
+	widgets.PageHost(x, c.page, c.direction, func() {
+		switch c.page {
+		case pageEditor:
+			if c.editing == nil {
+				c.page = pageList
+				c.viewList(x, p)
+				return
+			}
+			c.viewEditor(x, p)
+		case pageLogs:
+			c.viewLogs(x, p)
+		default:
 			c.viewList(x, p)
-			return
 		}
-		c.viewEditor(x, p)
-	case pageLogs:
-		c.viewLogs(x, p)
-	default:
-		c.viewList(x, p)
-	}
-}
-
-func (c *Controller) viewList(x *ui.Context, p theme.Palette) {
-	tasks := c.deps.Engine.Tasks()
-	ui.Column(x).Fill().Background(p.Background).Children(func() {
-		widgets.PageHeader(x, p, "定时任务", "按时间与周期执行命令", nil, func() {
-			ui.Button(x, "运行日志").OnClick(func() {
-				c.page = pageLogs
-			})
-			ui.PrimaryButton(x, "添加任务").OnClick(func() {
-				c.editing = newDraft()
-				c.page = pageEditor
-			})
-		})
-		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(10).Children(func() {
-				widgets.SectionHeader(x, p, "任务总览", "", "clock")
-				if len(tasks) == 0 {
-					c.viewEmpty(x, p)
-				}
-				for _, task := range tasks {
-					task := task
-					c.viewTaskCard(x, p, task)
-				}
-			})
-		})
 	})
 
 	if c.confirm {
@@ -131,38 +109,88 @@ func (c *Controller) viewList(x *ui.Context, p theme.Palette) {
 	}
 }
 
+// openEditor moves into the task editor, sliding in from the right.
+func (c *Controller) openEditor(editing *draft) {
+	c.editing = editing
+	c.page = pageEditor
+	c.direction = 1
+}
+
+// openLogs moves into the run logs, sliding in from the right.
+func (c *Controller) openLogs() {
+	c.page = pageLogs
+	c.direction = 1
+}
+
+// backToList returns to the task list, sliding back from the left.
+func (c *Controller) backToList() {
+	c.page = pageList
+	c.editing = nil
+	c.direction = -1
+}
+
+func (c *Controller) viewList(x *ui.Context, p theme.Palette) {
+	tasks := c.deps.Engine.Tasks()
+	ui.Column(x).Fill().Background(p.Background).Children(func() {
+		widgets.PageHeader(x, p, "定时任务", "按时间与周期执行命令", nil, func() {
+			widgets.Button(x, "运行日志").OnClick(func() {
+				c.openLogs()
+			})
+			widgets.PrimaryButton(x, "添加任务").OnClick(func() {
+				c.openEditor(newDraft())
+			})
+		})
+		ui.Scroll(x).Grow(1).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(12).Children(func() {
+				widgets.SectionHeader(x, p, "任务总览", "", "clock")
+				if len(tasks) == 0 {
+					c.viewEmpty(x, p)
+				}
+				for _, task := range tasks {
+					task := task
+					c.viewTaskCard(x, p, task)
+				}
+			})
+		})
+	})
+}
+
 func (c *Controller) viewEmpty(x *ui.Context, p theme.Palette) {
 	widgets.SurfaceCard(x, p, func() {
 		ui.Column(x).FillWidth().Padding(10).Gap(8).AlignItems(ui.Center).Children(func() {
 			widgets.IconContainer(x, p, "calendar-clock")
-			ui.Text(x, "暂无定时任务").FontSize(14).FontWeight(600).TextColor(p.Foreground)
-			ui.Text(x, "点击右上角「添加任务」开始创建").FontSize(12).TextColor(p.MutedForeground)
-			ui.PrimaryButton(x, "添加任务").OnClick(func() {
-				c.editing = newDraft()
-				c.page = pageEditor
+			ui.Text(x, "暂无定时任务").FontSize(theme.FontSizeHeading).FontWeight(600).TextColor(p.Foreground)
+			ui.Text(x, "点击右上角「添加任务」开始创建").FontSize(theme.FontSizeBody).TextColor(p.MutedForeground)
+			widgets.PrimaryButton(x, "添加任务").OnClick(func() {
+				c.openEditor(newDraft())
 			})
 		})
 	})
 }
 
 func (c *Controller) viewTaskCard(x *ui.Context, p theme.Palette, task Task) {
+	statusColor := p.Success
+	if !task.Enabled {
+		statusColor = p.MutedForeground
+	}
 	card := ui.Box(x).
 		FillWidth().
-		Padding(14).
+		Padding(16).
 		Radius(p.Radius).
-		Background(p.Card).
+		Background(p.Background).
 		Border(1, p.Border).
 		Gap(10)
 	card.Children(func() {
 		ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Row(x).Size(6, 6).Radius(3).Background(statusColor)
 			ui.Column(x).Grow(1).Gap(2).Children(func() {
-				ui.Text(x, task.Name).FontSize(14).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, task.Name).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
 				ui.Text(x, taskTypeLabel(task.Type)+" · "+scheduleText(task)).
-					FontSize(12).
-					TextColor(p.MutedForeground)
+					FontSize(theme.FontSizeTiny).
+					TextColor(p.SubtleForeground)
 			})
 			if !task.Enabled {
-				ui.Text(x, "已停用").FontSize(12).TextColor(p.MutedForeground)
+				widgets.StatusBadge(x, p, "已停用", p.MutedForeground)
 			}
 			enabled := task.Enabled
 			toggle := ui.Switch(x, &enabled)
@@ -173,18 +201,17 @@ func (c *Controller) viewTaskCard(x *ui.Context, p theme.Palette, task Task) {
 			}
 		})
 		ui.Row(x).FillWidth().Gap(8).Children(func() {
-			ui.Button(x, "立即运行").OnClick(func() {
+			widgets.Button(x, "立即运行").OnClick(func() {
 				if err := c.deps.Engine.RunNow(task.ID); err != nil {
 					c.toast = "任务执行失败: " + err.Error()
 					return
 				}
 				c.toast = "已提交执行：" + task.Name
 			})
-			ui.Button(x, "编辑").OnClick(func() {
-				c.editing = draftFromTask(task)
-				c.page = pageEditor
+			widgets.Button(x, "编辑").OnClick(func() {
+				c.openEditor(draftFromTask(task))
 			})
-			ui.Button(x, "删除").OnClick(func() {
+			widgets.Button(x, "删除").OnClick(func() {
 				c.confirm = true
 				c.confirmID = task.ID
 				c.confirmName = task.Name
@@ -201,27 +228,24 @@ func (c *Controller) viewEditor(x *ui.Context, p theme.Palette) {
 	}
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, title, "配置执行内容、时间与变量", func() {
-			c.page = pageList
-			c.editing = nil
+			c.backToList()
 		}, func() {
-			ui.Button(x, "取消").OnClick(func() {
-				c.page = pageList
-				c.editing = nil
+			widgets.Button(x, "取消").OnClick(func() {
+				c.backToList()
 			})
-			ui.PrimaryButton(x, "保存").OnClick(func() {
+			widgets.PrimaryButton(x, "保存").OnClick(func() {
 				if c.saveDraft() {
-					c.page = pageList
-					c.editing = nil
+					c.backToList()
 				}
 			})
 		})
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(16).Children(func() {
 				labeled(x, p, "任务名称", func() {
 					ui.TextInput(x, &d.name).Placeholder("例如：每日备份")
 				})
 				labeled(x, p, "任务类型", func() {
-					ui.Segmented(x, &d.taskType, "终端命令", "JS 脚本").Width(260)
+					widgets.Segmented(x, p, &d.taskType, "终端命令", "JS 脚本")
 				})
 				labeled(x, p, "开始时间", func() {
 					ui.Row(x).Gap(8).Children(func() {
@@ -241,7 +265,7 @@ func (c *Controller) viewEditor(x *ui.Context, p theme.Palette) {
 							FillWidth().
 							Height(240).
 							Border(1, p.Border).
-							Radius(8).
+							Radius(p.Radius).
 							Clip().
 							Children(func() {
 								editor.View(x, d.script).Fill()
@@ -279,8 +303,10 @@ func (c *Controller) viewVariables(x *ui.Context, p theme.Palette) {
 					})
 				})
 			}
-			ui.Button(x, "添加变量").Width(110).OnClick(func() {
-				d.variables = append(d.variables, variableDraft{typ: "字符串"})
+			ui.Row(x).Children(func() {
+				widgets.Button(x, "添加变量").OnClick(func() {
+					d.variables = append(d.variables, variableDraft{typ: "字符串"})
+				})
 			})
 		})
 	})
@@ -290,18 +316,18 @@ func (c *Controller) viewLogs(x *ui.Context, p theme.Palette) {
 	logs := c.deps.Engine.Logs()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "运行日志", "最近 5 天、最多 2000 条", func() {
-			c.page = pageList
+			c.backToList()
 		}, nil)
-		ui.Box(x).Grow(1).Padding(12, 20, 16).Children(func() {
+		ui.Box(x).Grow(1).Padding(16, theme.PagePadding).Children(func() {
 			ui.Box(x).
 				Fill().
 				Border(1, p.Border).
-				Radius(8).
+				Radius(p.Radius).
 				Clip().
 				Children(func() {
 					if len(logs) == 0 {
 						ui.Column(x).Fill().Center().Children(func() {
-							ui.Text(x, "暂无日志").FontSize(12).TextColor(p.MutedForeground)
+							ui.Text(x, "暂无日志").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 						})
 						return
 					}
@@ -309,7 +335,7 @@ func (c *Controller) viewLogs(x *ui.Context, p theme.Palette) {
 					ui.List(x, &c.logState, len(logs), func(index int) {
 						ui.Text(x, logs[index]).
 							Font("Consolas").
-							FontSize(12).
+							FontSize(theme.FontSizeTiny).
 							TextColor(p.Foreground).
 							Padding(3, 10)
 					}).Fill()
@@ -434,7 +460,7 @@ func draftFromTask(task Task) *draft {
 
 func labeled(x *ui.Context, p theme.Palette, label string, content func()) {
 	ui.Column(x).FillWidth().Gap(6).Children(func() {
-		ui.Text(x, label).FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, label)
 		content()
 	})
 }

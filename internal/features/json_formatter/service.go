@@ -4,12 +4,14 @@ package json_formatter
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 )
 
@@ -155,6 +157,164 @@ func ErrorMessage(input string) string {
 			return "无效的JSON格式: " + err.Error()
 		}
 	}
+}
+
+// Issue is where a JSON document stops being valid.
+type Issue struct {
+	// Start and End are the bytes to mark, End after the character at
+	// fault, which is a whole rune.
+	Start, End int
+	// Line and Col are the 1-based position of Start, Col counted in
+	// bytes as the editor's Pos does.
+	Line, Col int
+	// Message says what is wrong, in Chinese where the case is known.
+	Message string
+}
+
+// Locate reports the first error of input, at the byte it is about. A
+// document that merely ends too early is marked at the quote or bracket
+// left open, which is where the missing part belongs.
+func Locate(input string) (Issue, bool) {
+	if input == "" || IsValid(input) {
+		return Issue{}, false
+	}
+	// The decoder validates the whole text before it builds a value, so a
+	// broken document costs a scan rather than a tree of values; only a
+	// document that parses would be built, and that one was already valid.
+	var value any
+	err := json.Unmarshal(unsafeBytes(input), &value)
+	offset, message := 0, "无效的JSON格式"
+	var syntax *json.SyntaxError
+	if errors.As(err, &syntax) {
+		offset, message = int(syntax.Offset), syntax.Error()
+	} else if err != nil {
+		message = err.Error()
+	}
+	if message == "unexpected end of JSON input" {
+		// The text ran out: the decoder reports no byte for that, so the
+		// construct still open is marked instead. An offset one past the
+		// last byte, as a trailing comma also reports, is still a byte.
+		if start, what, ok := unclosedConstruct(input); ok {
+			return issueAt(input, start, "JSON 内容不完整："+what), true
+		}
+		return issueAt(input, max(offset-1, 0), "JSON 内容不完整：意外结束"), true
+	}
+	return issueAt(input, max(offset-1, 0), localizeMessage(message)), true
+}
+
+// issueAt marks the rune at start, with the 1-based position of start.
+func issueAt(input string, start int, message string) Issue {
+	start = max(0, min(start, len(input)-1))
+	end := start + 1
+	if _, size := utf8.DecodeRuneInString(input[start:]); size > 1 {
+		end = start + size
+	}
+	line, col := lineCol(input, start)
+	return Issue{Start: start, End: end, Line: line, Col: col, Message: message}
+}
+
+// lineCol returns the 1-based line and byte column of offset.
+func lineCol(input string, offset int) (line, col int) {
+	line, start := 1, 0
+	for i := 0; i < offset && i < len(input); i++ {
+		if input[i] == '\n' {
+			line++
+			start = i + 1
+		}
+	}
+	return line, offset - start + 1
+}
+
+// unclosedConstruct returns what a text that ends too early left open:
+// the string whose closing quote is missing, or the innermost object or
+// array whose closing bracket is.
+func unclosedConstruct(input string) (int, string, bool) {
+	stack := make([]int, 0, 16)
+	inString, stringStart, escaped := false, -1, false
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if inString && ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			if inString {
+				stringStart = i
+			} else {
+				stringStart = -1
+			}
+			continue
+		}
+		if inString {
+			continue
+		}
+		switch ch {
+		case '{', '[':
+			stack = append(stack, i)
+		case '}', ']':
+			if n := len(stack); n > 0 {
+				open := input[stack[n-1]]
+				if open == '{' && ch == '}' || open == '[' && ch == ']' {
+					stack = stack[:n-1]
+				}
+			}
+		}
+	}
+	if inString && stringStart >= 0 {
+		return stringStart, "字符串缺少结束引号", true
+	}
+	if n := len(stack); n > 0 {
+		start := stack[n-1]
+		if input[start] == '{' {
+			return start, "对象没有闭合，缺少 }", true
+		}
+		return start, "数组没有闭合，缺少 ]", true
+	}
+	return 0, "", false
+}
+
+// localizeMessage turns the decoder's message into Chinese for the cases
+// a hand-edited payload usually hits, and keeps it as it is otherwise.
+func localizeMessage(message string) string {
+	const prefix = "invalid character "
+	if !strings.HasPrefix(message, prefix) {
+		if message == "unexpected end of JSON input" {
+			return "JSON 内容不完整：意外结束"
+		}
+		return message
+	}
+	rest := message[len(prefix):]
+	char, reason := rest, ""
+	if strings.HasPrefix(rest, "'") {
+		if j := strings.IndexByte(rest[1:], '\''); j >= 0 {
+			char = rest[:j+2]
+			reason = strings.TrimSpace(rest[j+2:])
+		}
+	}
+	phrases := []struct{ prefix, text string }{
+		{"looking for beginning of object key string", "此处应为用双引号括起来的键"},
+		{"looking for beginning of value", "此处应为值"},
+		{"after object key:value pair", "此处缺少逗号，或值后有多余字符"},
+		{"after object key", "键后缺少值"},
+		{"after array element", "此处缺少逗号，或元素后有多余字符"},
+		{"after top-level value", "顶层内容之后还有多余字符"},
+		{"in string", "字符串中出现非法字符"},
+		{"in literal", "字面量写错了"},
+		{"in numeric literal", "数字格式错误"},
+		{"after decimal point", "数字格式错误"},
+		{"in exponent", "数字格式错误"},
+	}
+	for _, p := range phrases {
+		if strings.HasPrefix(reason, p.prefix) {
+			return p.text + "（出现 " + char + "）"
+		}
+	}
+	return message
 }
 
 // LineProperty is the JSON property of one formatted line, for the
@@ -331,9 +491,11 @@ func smartRepair(input string, budget time.Duration) (string, bool) {
 		return trimmed, true
 	}
 
-	repaired := replaceSingleQuotes(trimmed)
+	repaired := closeUnterminatedStrings(trimmed)
+	repaired = replaceSingleQuotes(repaired)
 	repaired = quoteUnquotedKeys(repaired)
 	repaired = removeTrailingCommas(repaired)
+	repaired = insertMissingCommas(repaired)
 	repaired = balanceBrackets(repaired)
 	if IsValid(repaired) {
 		return repaired, true
@@ -342,6 +504,66 @@ func smartRepair(input string, budget time.Duration) (string, bool) {
 		return truncated, true
 	}
 	return "", false
+}
+
+// closeUnterminatedStrings closes a string that runs past the end of its
+// line. A raw line break inside a JSON string is always an error, and a
+// payload that lost a closing quote continues on the next line with the
+// next member, so the string is closed right before the break: escaping
+// the break instead would swallow that member into the value. It runs
+// first, because every later pass tracks string boundaries to stay out
+// of them, and a string that never closes leaves them all guessing.
+func closeUnterminatedStrings(input string) string {
+	var buffer strings.Builder
+	buffer.Grow(len(input) + 16)
+	inString := false
+	escaped := false
+	changed := false
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			escaped = false
+			if inString && isLineBreak(ch) {
+				// A line that ends in a lone backslash: drop the dangling
+				// escape and close the string, keeping the break.
+				buffer.WriteByte('"')
+				inString = false
+				changed = true
+			} else {
+				buffer.WriteByte('\\')
+			}
+			buffer.WriteByte(ch)
+			continue
+		}
+		if ch == '\\' {
+			// Held back, so a backslash that only escapes the line break
+			// can be dropped instead of written.
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			buffer.WriteByte(ch)
+			continue
+		}
+		if inString && isLineBreak(ch) {
+			buffer.WriteByte('"')
+			inString = false
+			changed = true
+		}
+		buffer.WriteByte(ch)
+	}
+	if escaped {
+		buffer.WriteByte('\\')
+	}
+	if !changed {
+		return input
+	}
+	return buffer.String()
+}
+
+func isLineBreak(ch byte) bool {
+	return ch == '\n' || ch == '\r'
 }
 
 func replaceSingleQuotes(input string) string {
@@ -480,6 +702,128 @@ func removeTrailingCommas(input string) string {
 		return input
 	}
 	return buffer.String()
+}
+
+// insertMissingCommas adds the commas left out between two members or
+// elements, as a hand-edited or patched payload often does: a value line
+// followed by the next key with no comma between them. It must run
+// before balanceBrackets, which closes the containers, and it is what
+// repairs such a document at all: cutting back to the last complete
+// value cannot help, because every cut point after the missing comma
+// still contains the break.
+func insertMissingCommas(input string) string {
+	var buffer strings.Builder
+	buffer.Grow(len(input) + len(input)/16)
+	stack := make([]byte, 0, 16)
+	inString := false
+	escaped := false
+	// needComma is set once a value is complete: the next key, element
+	// or object without a comma in between is where one is missing.
+	needComma := false
+	changed := false
+	// Whitespace is held back until the next token, so an inserted comma
+	// ends the value's line instead of opening the next one.
+	pending := ""
+	flush := func() {
+		buffer.WriteString(pending)
+		pending = ""
+	}
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			flush()
+			buffer.WriteByte(ch)
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			flush()
+			buffer.WriteByte(ch)
+			escaped = true
+			continue
+		}
+		if inString {
+			buffer.WriteByte(ch)
+			if ch == '"' {
+				inString = false
+				needComma = true
+			}
+			continue
+		}
+		if isSpace(ch) {
+			start := i
+			for i+1 < len(input) && isSpace(input[i+1]) {
+				i++
+			}
+			pending = input[start : i+1]
+			continue
+		}
+		if needComma && len(stack) > 0 && startsValue(ch) {
+			buffer.WriteByte(',')
+			changed = true
+			needComma = false
+		}
+		flush()
+		switch ch {
+		case '"':
+			inString = true
+			needComma = false
+			buffer.WriteByte(ch)
+		case '{', '[':
+			stack = append(stack, ch)
+			needComma = false
+			buffer.WriteByte(ch)
+		case '}':
+			if len(stack) > 0 && stack[len(stack)-1] == '{' {
+				stack = stack[:len(stack)-1]
+			}
+			needComma = true
+			buffer.WriteByte(ch)
+		case ']':
+			if len(stack) > 0 && stack[len(stack)-1] == '[' {
+				stack = stack[:len(stack)-1]
+			}
+			needComma = true
+			buffer.WriteByte(ch)
+		case ',', ':':
+			// The separator is there, so nothing is missing here. A
+			// comma also means the value before it is complete.
+			needComma = false
+			buffer.WriteByte(ch)
+		default:
+			if !isValueChar(ch) {
+				// Nothing a comma could separate: keep the byte as is.
+				buffer.WriteByte(ch)
+				needComma = false
+				continue
+			}
+			// A number or literal: copy the whole run, since only its
+			// end starts a new token that a comma would have to precede.
+			j := i
+			for j < len(input) && isValueChar(input[j]) {
+				j++
+			}
+			buffer.WriteString(input[i:j])
+			i = j - 1
+			needComma = true
+		}
+	}
+	flush()
+	if !changed {
+		return input
+	}
+	return buffer.String()
+}
+
+// startsValue reports whether ch can begin a key, element or value.
+func startsValue(ch byte) bool {
+	return ch == '"' || ch == '{' || ch == '[' || ch == '-' ||
+		(ch >= '0' && ch <= '9') || isIdentStart(ch)
+}
+
+// isValueChar reports whether ch belongs to a number or literal run.
+func isValueChar(ch byte) bool {
+	return isIdentChar(ch) || ch == '.' || ch == '+' || ch == '-'
 }
 
 func balanceBrackets(input string) string {

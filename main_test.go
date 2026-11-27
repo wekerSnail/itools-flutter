@@ -18,7 +18,7 @@ func TestHomeView(t *testing.T) {
 	view := func(c *ui.Context) {
 		home.View(c, home.Deps{
 			Palette: func() theme.Palette {
-				return theme.BuildPalette(theme.StyleModern, false)
+				return theme.BuildPalette(theme.AccentBlue, false)
 			},
 			OpenTool: func(id string) {
 				opened = id
@@ -40,7 +40,7 @@ func TestHomeView(t *testing.T) {
 }
 
 func TestSettingsView(t *testing.T) {
-	palette := theme.BuildPalette(theme.StyleLuxury, true)
+	palette := theme.BuildPalette(theme.AccentIndigo, true)
 	dataStore := store.New(t.TempDir())
 	controller := settings.New(settings.Deps{
 		Theme:   theme.NewManager(dataStore, func() bool { return false }),

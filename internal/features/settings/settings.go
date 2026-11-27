@@ -10,6 +10,7 @@ import (
 
 	"itools/internal/features/backup"
 	"itools/internal/services/hotkeys"
+	"itools/internal/ui/icons"
 	"itools/internal/ui/theme"
 	"itools/internal/ui/widgets"
 )
@@ -40,6 +41,9 @@ type Deps struct {
 type Controller struct {
 	deps Deps
 	page page
+	// direction is which way the next page slides: 1 into a sub-page, -1
+	// back to the menu.
+	direction int
 
 	recordOpen   bool
 	recordingID  string
@@ -56,17 +60,19 @@ type Controller struct {
 
 // New returns a settings controller.
 func New(deps Deps) *Controller {
-	return &Controller{deps: deps}
+	return &Controller{deps: deps, direction: 1}
 }
 
 // Reset returns to the settings menu.
 func (c *Controller) Reset() {
 	c.page = pageMenu
+	c.direction = 1
 	c.recordOpen = false
 	c.conflict = false
 }
 
-// View draws the current settings page.
+// View draws the current settings page, sliding it in over the one it
+// replaces.
 func (c *Controller) View(x *ui.Context, onHome func()) {
 	c.takePending()
 	p := c.deps.Palette()
@@ -74,18 +80,34 @@ func (c *Controller) View(x *ui.Context, onHome func()) {
 		x.Toast(c.notice)
 		c.notice = ""
 	}
-	switch c.page {
-	case pageTheme:
-		c.viewTheme(x, p)
-	case pageHotkeys:
-		c.viewHotkeys(x, p)
-	case pageBackup:
-		c.viewBackup(x, p)
-	case pageAutostart:
-		c.viewAutostart(x, p)
-	default:
-		c.viewMenu(x, p, onHome)
+	widgets.PageHost(x, c.page, c.direction, func() {
+		switch c.page {
+		case pageTheme:
+			c.viewTheme(x, p)
+		case pageHotkeys:
+			c.viewHotkeys(x, p)
+		case pageBackup:
+			c.viewBackup(x, p)
+		case pageAutostart:
+			c.viewAutostart(x, p)
+		default:
+			c.viewMenu(x, p, onHome)
+		}
+	})
+}
+
+// navigate moves to a page, remembering which way the slide goes: into a
+// sub-page from the right, back to the menu from the left.
+func (c *Controller) navigate(next page) {
+	if next == c.page {
+		return
 	}
+	if next == pageMenu {
+		c.direction = -1
+	} else if c.page == pageMenu {
+		c.direction = 1
+	}
+	c.page = next
 }
 
 func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
@@ -95,7 +117,7 @@ func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
 		description string
 		page        page
 	}{
-		{"sun-moon", "主题设置", "选择亮色、暗色或跟随系统主题", pageTheme},
+		{"sun-moon", "主题设置", "选择外观与主题色", pageTheme},
 		{"keyboard", "热键设置", "配置全局快捷键，快速触发常用操作", pageHotkeys},
 		{"database", "备份还原", "导出当前数据或导入历史备份", pageBackup},
 		{"power", "开机自启", "设置开机时自动启动应用", pageAutostart},
@@ -103,12 +125,12 @@ func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "设置", "管理应用配置和偏好", onHome, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(10).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(12).Children(func() {
 				widgets.SectionHeader(x, p, "偏好入口", "", "info")
 				for _, entry := range entries {
 					entry := entry
 					widgets.MenuCard(x, p, entry.icon, entry.title, entry.description, func() {
-						c.page = entry.page
+						c.navigate(entry.page)
 					})
 				}
 			})
@@ -120,59 +142,74 @@ func (c *Controller) viewTheme(x *ui.Context, p theme.Palette) {
 	manager := c.deps.Theme
 	mode := modeIndex(manager.Mode())
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
-		widgets.PageHeader(x, p, "主题设置", "选择亮色、暗色或跟随系统主题", func() {
-			c.page = pageMenu
+		widgets.PageHeader(x, p, "主题设置", "外观与强调色", func() {
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(16).Children(func() {
-				widgets.SectionHeader(x, p, "主题风格", "切换后立即生效", "sun-moon")
-				ui.Row(x).FillWidth().Gap(12).Children(func() {
-					c.styleCard(x, p, theme.StyleModern, "精致现代", "优雅蓝色背景，清新现代风格")
-					c.styleCard(x, p, theme.StyleLuxury, "极简轻奢", "米灰中性色调，极简优雅风格")
-				})
-				widgets.SectionHeader(x, p, "外观模式", "跟随系统亮暗切换", "info")
-				seg := ui.Segmented(x, &mode, "亮色", "暗色", "跟随系统").Width(300)
-				if seg.Changed() {
-					if err := manager.SetMode(modeValue(mode)); err != nil {
-						c.notice = "保存主题失败: " + err.Error()
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(20).Children(func() {
+				c.section(x, p, "外观", "亮色、深色、纯黑或跟随系统", func() {
+					seg := widgets.Segmented(x, p, &mode, "亮色", "深色", "纯黑", "跟随系统")
+					if seg.Changed() {
+						if err := manager.SetMode(modeValue(mode)); err != nil {
+							c.notice = "保存主题失败: " + err.Error()
+						}
+						c.deps.Invalidate()
 					}
-					c.deps.Invalidate()
-				}
+					ui.Text(x, theme.ModeName(manager.Mode())).
+						FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
+				})
+				widgets.Divider(x, p)
+				c.section(x, p, "主题色", "按钮、选中态与焦点环的颜色", func() {
+					ui.Row(x).Wrap().Gap(6).AlignItems(ui.Center).Children(func() {
+						for _, spec := range theme.Accents {
+							spec := spec
+							selected := manager.Accent() == spec.ID
+							btn := ui.ButtonBase(x).
+								Width(30).
+								Height(30).
+								Label("主题色 " + spec.Name).
+								Cursor(ui.CursorPointer)
+							btn.Children(func() {
+								swatch := ui.Row(x).
+									Size(18, 18).
+									Radius(9).
+									Background(spec.Base).
+									AlignItems(ui.Center).
+									Justify(ui.Center)
+								if selected {
+									swatch.Border(2, p.Foreground)
+									ui.Icon(x, icons.Must("check")).
+										Width(10).
+										Height(10).
+										TextColor(swatchInk(spec.Base))
+								}
+							})
+							if btn.Clicked() {
+								if err := manager.SetAccent(spec.ID); err != nil {
+									c.notice = "保存主题失败: " + err.Error()
+									return
+								}
+								c.deps.Invalidate()
+							}
+						}
+					})
+					ui.Text(x, theme.AccentName(manager.Accent())).
+						FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
+				})
 			})
 		})
 	})
 }
 
-func (c *Controller) styleCard(x *ui.Context, p theme.Palette, style theme.Style, title, description string) {
-	selected := c.deps.Theme.Style() == style
-	card := ui.Box(x).
-		Grow(1).
-		Padding(14).
-		Radius(p.Radius).
-		Background(p.Card).
-		Border(1, p.Border).
-		OnClick(func() {
-			if err := c.deps.Theme.SetStyle(style); err != nil {
-				c.notice = "保存主题失败: " + err.Error()
-			}
-			c.deps.Invalidate()
+// section draws one settings row: its label and note at the left, its controls
+// at the right, as ApiGo's settings panel does.
+func (c *Controller) section(x *ui.Context, p theme.Palette, title, note string, controls func()) {
+	ui.Row(x).FillWidth().Gap(24).AlignItems(ui.Start).Children(func() {
+		ui.Column(x).Width(180).Gap(4).Children(func() {
+			ui.Text(x, title).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
+			ui.Text(x, note).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		})
-	if selected {
-		card.Border(2, p.Ring)
-	} else if card.Hovered() {
-		card.Background(p.CardHover)
-	}
-	card.Children(func() {
-		ui.Column(x).Gap(8).Children(func() {
-			ui.Row(x).Gap(6).Children(func() {
-				preview := theme.BuildPalette(style, c.deps.Theme.IsDark())
-				for _, color := range []ui.Color{preview.Primary, preview.Secondary, preview.Background} {
-					ui.Box(x).Size(26, 26).Radius(7).Background(color).Border(1, p.Border)
-				}
-			})
-			ui.Text(x, title).FontSize(14).FontWeight(600).TextColor(p.Foreground)
-			ui.Text(x, description).FontSize(12).TextColor(p.MutedForeground)
-		})
+		ui.Column(x).Grow(1).Gap(8).Children(controls)
 	})
 }
 
@@ -181,10 +218,10 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 	actions := manager.Actions()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "热键设置", "配置全局快捷键，快速触发常用操作", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(10).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(12).Children(func() {
 				widgets.SectionHeader(x, p, "全局热键", "应用在后台或最小化时仍然有效", "keyboard")
 				for _, action := range actions {
 					action := action
@@ -194,20 +231,20 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 						binding = hotkeys.Display(config)
 					}
 					widgets.SurfaceCard(x, p, func() {
-						ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+						ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 							widgets.IconContainer(x, p, "keyboard")
 							ui.Column(x).Grow(1).Gap(2).Children(func() {
-								ui.Text(x, action.Title).FontSize(14).FontWeight(600).TextColor(p.Foreground)
-								ui.Text(x, action.Description).FontSize(12).TextColor(p.MutedForeground)
-								ui.Text(x, binding).FontSize(12).FontWeight(600).TextColor(p.Primary)
+								ui.Text(x, action.Title).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
+								ui.Text(x, action.Description).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
+								ui.Text(x, binding).FontSize(theme.FontSizeTiny).FontWeight(600).TextColor(p.Primary)
 							})
-							ui.Button(x, "设置").OnClick(func() {
+							widgets.Button(x, "设置").OnClick(func() {
 								c.recordingID = action.ID
 								c.recordOpen = true
 								c.pending = hotkeys.Config{}
 							})
 							if has {
-								ui.Button(x, "清除").OnClick(func() {
+								widgets.Button(x, "清除").OnClick(func() {
 									if err := manager.RemoveConfig(action.ID); err != nil {
 										c.notice = "清除失败: " + err.Error()
 										return
@@ -227,26 +264,22 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 		ui.Modal(x, &c.recordOpen, func() {
 			panel := ui.Box(x).
 				Width(400).
-				Background(p.Card).
-				Border(1, p.Border).
-				Radius(p.Radius).
-				Padding(18).
-				Gap(10).
+				Gap(12).
 				Focusable().
 				AutoFocus().
 				HandleInput(func(event ui.InputEvent) bool {
 					return c.captureHotkey(event)
 				})
 			panel.Children(func() {
-				ui.Text(x, "录制热键").FontSize(16).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, "录制热键").FontSize(theme.FontSizeTitle).FontWeight(600).TextColor(p.Foreground)
 				ui.Text(x, "请按下要绑定的组合键，支持 Ctrl / Shift / Alt / Win，Esc 取消。").
-					FontSize(12).
-					TextColor(p.MutedForeground)
+					FontSize(theme.FontSizeTiny).
+					TextColor(p.SubtleForeground)
 				if c.pending.Accelerator != "" {
-					ui.Text(x, hotkeys.Display(c.pending)).FontSize(14).FontWeight(600).TextColor(p.Primary)
+					ui.Text(x, hotkeys.Display(c.pending)).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Primary)
 				}
 				ui.Row(x).FillWidth().Justify(ui.End).Children(func() {
-					ui.Button(x, "取消").OnClick(func() {
+					widgets.Button(x, "取消").OnClick(func() {
 						c.recordOpen = false
 					})
 				})
@@ -307,34 +340,34 @@ func (c *Controller) viewBackup(x *ui.Context, p theme.Palette) {
 	busy := c.isBusy()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "备份还原", "导出当前数据或导入历史备份", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(16).Children(func() {
 				widgets.SectionHeader(x, p, "当前数据", "包含定时任务、日志、文件夹映射、主题与热键", "database")
 				widgets.SurfaceCard(x, p, func() {
 					ui.Column(x).Gap(4).Children(func() {
 						ui.Text(x, fmt.Sprintf("将备份 %d 个文件", len(files))).
-							FontSize(14).
+							FontSize(theme.FontSizeBody).
 							FontWeight(600).
 							TextColor(p.Foreground)
 						if len(files) == 0 {
-							ui.Text(x, "暂无数据").FontSize(12).TextColor(p.MutedForeground)
+							ui.Text(x, "暂无数据").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 						}
 						for _, name := range files {
-							ui.Text(x, name).Font("Consolas").FontSize(12).TextColor(p.MutedForeground)
+							ui.Text(x, name).Font("Consolas").FontSize(theme.FontSizeTiny).TextColor(p.MutedForeground)
 						}
 					})
 				})
 				ui.Row(x).Gap(8).Children(func() {
-					exportButton := ui.PrimaryButton(x, "导出备份")
+					exportButton := widgets.PrimaryButton(x, "导出备份")
 					if busy {
 						exportButton.Disabled(true)
 					}
 					exportButton.OnClick(func() {
 						c.exportBackup()
 					})
-					importButton := ui.Button(x, "导入备份")
+					importButton := widgets.Button(x, "导入备份")
 					if busy {
 						importButton.Disabled(true)
 					}
@@ -343,7 +376,7 @@ func (c *Controller) viewBackup(x *ui.Context, p theme.Palette) {
 					})
 				})
 				if busy {
-					ui.Text(x, "正在处理...").FontSize(12).TextColor(p.MutedForeground)
+					ui.Text(x, "正在处理...").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 				}
 			})
 		})
@@ -354,21 +387,21 @@ func (c *Controller) viewAutostart(x *ui.Context, p theme.Palette) {
 	enabled := c.deps.OpenAtLogin()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "开机自启", "设置开机时自动启动应用", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(16).Children(func() {
 				widgets.SectionHeader(x, p, "启动选项", "开机自动启动，仅在托盘驻留", "power")
 				widgets.SurfaceCard(x, p, func() {
-					ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+					ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 						widgets.IconContainer(x, p, "power")
 						ui.Column(x).Grow(1).Gap(2).Children(func() {
-							ui.Text(x, "开机自启").FontSize(14).FontWeight(600).TextColor(p.Foreground)
+							ui.Text(x, "开机自启").FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
 							status := "当前未开启"
 							if enabled {
 								status = "当前已开启"
 							}
-							ui.Text(x, status).FontSize(12).TextColor(p.MutedForeground)
+							ui.Text(x, status).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 						})
 						toggle := ui.Switch(x, &enabled)
 						if toggle.Changed() {
@@ -377,8 +410,8 @@ func (c *Controller) viewAutostart(x *ui.Context, p theme.Palette) {
 					})
 				})
 				ui.Text(x, "说明：开机自启由 Windows 当前用户的启动项管理，可在系统设置中关闭。").
-					FontSize(12).
-					TextColor(p.MutedForeground)
+					FontSize(theme.FontSizeTiny).
+					TextColor(p.SubtleForeground)
 			})
 		})
 	})
@@ -494,14 +527,25 @@ func (c *Controller) takePending() {
 	c.mu.Unlock()
 }
 
+// swatchInk is the color of the check on an accent swatch: dark on a light
+// color, white on a dark one.
+func swatchInk(c ui.Color) ui.Color {
+	if 0.2126*float32(c.R)+0.7152*float32(c.G)+0.0722*float32(c.B) > 160 {
+		return ui.Hex("#111827")
+	}
+	return ui.Hex("#FFFFFF")
+}
+
 func modeIndex(mode theme.Mode) int {
 	switch mode {
 	case theme.ModeLight:
 		return 0
 	case theme.ModeDark:
 		return 1
-	default:
+	case theme.ModeBlack:
 		return 2
+	default:
+		return 3
 	}
 }
 
@@ -511,6 +555,8 @@ func modeValue(index int) theme.Mode {
 		return theme.ModeLight
 	case 1:
 		return theme.ModeDark
+	case 2:
+		return theme.ModeBlack
 	default:
 		return theme.ModeSystem
 	}

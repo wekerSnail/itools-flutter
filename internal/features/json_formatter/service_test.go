@@ -67,6 +67,54 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+// Locate marks the byte at fault, and the quote or bracket left open by
+// a text that ends too early, so a check can scroll to it.
+func TestLocate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		found bool
+		line  int
+		col   int
+		at    string
+		want  string
+	}{
+		{"valid", `{"a":1}`, false, 0, 0, "", ""},
+		{"empty", "", false, 0, 0, "", ""},
+		{"trailing comma", `{"a":1,}`, true, 1, 8, "}", "用双引号括起来的键"},
+		{"missing comma", "{\n  \"a\": 1\n  \"b\": 2\n}", true, 3, 3, `"`, "缺少逗号"},
+		{"missing value", `{"a":}`, true, 1, 6, "}", "此处应为值"},
+		{"unclosed object", `{"a":1`, true, 1, 1, "{", "缺少 }"},
+		{"unclosed array", "[1,2", true, 1, 1, "[", "缺少 ]"},
+		{"unclosed string", `{"a":"x}`, true, 1, 6, `"`, "结束引号"},
+		{"trailing data", `{"a":1}{"b":2}`, true, 1, 8, "{", "顶层内容"},
+		{"bad literal", `{"a":tru}`, true, 1, 9, "}", "字面量"},
+		// Col counts bytes, as the editor's Pos does: "中" and "文" are
+		// three bytes each.
+		{"multibyte", `{"中":"文",}`, true, 1, 14, "}", "用双引号括起来的键"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			issue, found := Locate(test.input)
+			if found != test.found {
+				t.Fatalf("Locate(%q) found = %v, want %v", test.input, found, test.found)
+			}
+			if !found {
+				return
+			}
+			if issue.Line != test.line || issue.Col != test.col {
+				t.Fatalf("Locate(%q) at line %d col %d, want %d:%d", test.input, issue.Line, issue.Col, test.line, test.col)
+			}
+			if got := test.input[issue.Start:issue.End]; got != test.at {
+				t.Fatalf("Locate(%q) marks %q, want %q", test.input, got, test.at)
+			}
+			if !strings.Contains(issue.Message, test.want) {
+				t.Fatalf("Locate(%q) message = %q, want it to hold %q", test.input, issue.Message, test.want)
+			}
+		})
+	}
+}
+
 func TestEscapeUnescape(t *testing.T) {
 	input := "line1\nline2\t\"quoted\"\\"
 	escaped := Escape(input)
@@ -87,6 +135,8 @@ func TestSmartRepair(t *testing.T) {
 		{`{name: 'John', age: 30,}`, `{"name": "John", "age": 30}`, true},
 		{`{"a":1,`, `{"a":1}`, true},
 		{`{"a":1,"b":2,}`, `{"a":1,"b":2}`, true},
+		{`{"a":1 "b":2}`, `{"a":1, "b":2}`, true},
+		{`[1 2]`, `[1, 2]`, true},
 		{`not json at all`, "", false},
 		{`{"ok":true}`, `{"ok":true}`, true},
 	}
@@ -108,6 +158,75 @@ func TestErrorMessage(t *testing.T) {
 	}
 	if got := ErrorMessage(`{"a":1}`); got != "" {
 		t.Fatalf("valid message = %q", got)
+	}
+}
+
+// A payload that lost the comma between a value and the next key is the
+// case the truncation fallback cannot recover: every cut point after the
+// missing comma still holds the break. The comma pass has to repair it
+// in place and keep the members on both sides.
+func TestSmartRepairMissingComma(t *testing.T) {
+	input := `{
+  "code": "200",
+  "data": [
+    {
+      "configOptionKey": "1",
+      "configOptionValue": "40mmx30mm"
+      "id": "5702396381628795494",
+      "sortNo": 1
+    }
+  ],
+  "success": true
+}`
+	repaired, ok := SmartRepair(input)
+	if !ok {
+		t.Fatal("SmartRepair could not repair a missing comma")
+	}
+	if !IsValid(repaired) {
+		t.Fatalf("repaired JSON is invalid:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"40mmx30mm",`+"\n      \"id\"") {
+		t.Fatalf("the comma was not inserted between the two members:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"sortNo": 1`) {
+		t.Fatalf("a member after the missing comma was dropped:\n%s", repaired)
+	}
+}
+
+// A value whose closing quote was lost swallows the line break and the
+// member after it, so the string has to be closed at the break: the
+// member on the next line is kept, and the missing comma follows it.
+func TestSmartRepairUnterminatedString(t *testing.T) {
+	input := `{
+  "code": "200",
+  "data": [
+    {
+      "configItemCode": "LABEL_PNT_SI
+      "configOptionDesc": "40x30",
+      "sortNo": 1
+    }
+  ],
+  "success": true
+}`
+	repaired, ok := SmartRepair(input)
+	if !ok {
+		t.Fatal("SmartRepair could not repair an unterminated string")
+	}
+	if !IsValid(repaired) {
+		t.Fatalf("repaired JSON is invalid:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, "\"configItemCode\": \"LABEL_PNT_SI\",\n") {
+		t.Fatalf("the string was not closed at the line break:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"configOptionDesc": "40x30"`) ||
+		!strings.Contains(repaired, `"sortNo": 1`) {
+		t.Fatalf("a member after the break was dropped:\n%s", repaired)
+	}
+
+	// A line ending in a lone backslash loses the dangling escape, not
+	// the string's last character or the member below it.
+	if got, ok := SmartRepair("{\"a\":\"x\\\n\"b\":2}"); !ok || got != "{\"a\":\"x\",\n\"b\":2}" {
+		t.Fatalf("dangling escape repaired to %q, %v", got, ok)
 	}
 }
 
