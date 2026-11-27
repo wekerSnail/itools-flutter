@@ -97,10 +97,23 @@ const (
 	FontSizeDisplay float32 = 22
 )
 
+// Metrics, in DIPs, as ApiGo's interface measures.
+const (
+	HeaderHeight    float32 = 48
+	ToolbarHeight   float32 = 40
+	StatusBarHeight float32 = 32
+	ControlHeight   float32 = 32
+	ControlPaddingX float32 = 14
+	IconButtonSize  float32 = 28
+	ListRowHeight   float32 = 52
+	PagePadding     float32 = 20
+)
+
 // Radii, in DIPs.
 const (
 	RadiusCard    float32 = 6
 	RadiusSmall   float32 = 4
+	RadiusControl float32 = 4
 	RadiusDialog  float32 = 8
 	RadiusIconBox float32 = 6
 )
@@ -274,7 +287,9 @@ func BuildTheme(p Palette) *ui.Theme {
 	t.Warning = p.Warning
 	t.Selection = p.Selection
 	t.Focus = p.Ring
-	t.Radius = p.Radius
+	// Controls (buttons, inputs, selects, segments) take the tighter radius
+	// ApiGo draws them with; cards keep the palette's own.
+	t.Radius = RadiusControl
 	t.Spacing = 4
 	t.Font = FontFamily
 	t.FontSize = FontSizeBody

@@ -112,7 +112,7 @@ func (c *Controller) View(x *ui.Context) {
 
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "文件夹映射", "快捷管理并双击打开目录", nil, func() {
-			ui.Button(x, "新建集合").OnClick(func() {
+			widgets.PrimaryButton(x, "新建集合").OnClick(func() {
 				c.openCollectionForm(nil)
 			})
 		})
@@ -127,7 +127,7 @@ func (c *Controller) View(x *ui.Context) {
 }
 
 func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
-	ui.Box(x).Fill().Padding(12, 20).Children(func() {
+	ui.Box(x).Fill().Padding(12, theme.PagePadding).Children(func() {
 		if len(c.collections) == 0 {
 			ui.Text(x, "还没有集合").
 				FontSize(theme.FontSizeTiny).
@@ -149,7 +149,7 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 				FillWidth().
 				Padding(10).
 				Margin(3).
-				Radius(p.Radius).
+				Radius(theme.RadiusControl).
 				AlignItems(ui.Center).
 				Gap(4).
 				OnClick(func() {
@@ -189,7 +189,7 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 
 func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 	collection, ok := c.selected()
-	ui.Box(x).Fill().Padding(12, 20).Gap(12).Children(func() {
+	ui.Box(x).Fill().Padding(12, theme.PagePadding).Gap(12).Children(func() {
 		ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Column(x).Grow(1).Gap(1).Children(func() {
 				name := "快捷方式"
@@ -203,7 +203,7 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 						TextColor(p.SubtleForeground)
 				}
 			})
-			ui.Button(x, "新建快捷方式").OnClick(func() {
+			widgets.Button(x, "新建快捷方式").OnClick(func() {
 				if !ok {
 					x.Toast("请先创建并选择一个集合")
 					return
@@ -231,7 +231,7 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 						FillWidth().
 						Padding(12).
 						Radius(p.Radius).
-						Background(p.Card).
+						Background(p.Background).
 						Border(1, p.Border).
 						OnClick(func() {}).
 						Drag(shortcutDrag{CollectionID: collection.ID, ShortcutID: shortcut.ID})
@@ -307,16 +307,16 @@ func (c *Controller) viewDialogs(x *ui.Context, p theme.Palette) {
 				if c.modalKind == modalShortcut {
 					ui.Row(x).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 						ui.TextInput(x, &c.form.path).Placeholder("目录路径").Label("目录路径").Grow(1)
-						ui.Button(x, "浏览...").OnClick(func() {
+						widgets.Button(x, "浏览...").OnClick(func() {
 							c.pickFolder()
 						})
 					})
 				}
 				ui.Row(x).FillWidth().Gap(8).Justify(ui.End).Children(func() {
-					ui.Button(x, "取消").OnClick(func() {
+					widgets.Button(x, "取消").OnClick(func() {
 						c.modalOpen = false
 					})
-					ui.PrimaryButton(x, "保存").OnClick(func() {
+					widgets.PrimaryButton(x, "保存").OnClick(func() {
 						if c.saveForm() {
 							c.modalOpen = false
 						}

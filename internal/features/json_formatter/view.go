@@ -118,39 +118,39 @@ func (c *Controller) View(x *ui.Context) {
 			c.viewInput(x, p)
 		}, func() {
 			c.viewOutput(x, p)
-		}).Grow(1).Padding(0, 20, 16)
+		}).Grow(1).Padding(0, theme.PagePadding, 16)
 	})
 	c.viewLoading(x, p, state)
 }
 
 func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette, busy bool) {
 	ui.Column(x).FillWidth().Children(func() {
-		ui.Row(x).FillWidth().Wrap().Gap(6).Padding(8, 20).Background(p.Card).Children(func() {
-			ui.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
+		ui.Row(x).FillWidth().Wrap().Gap(8).Padding(4, theme.PagePadding).Background(p.Background).Children(func() {
+			widgets.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
 				c.runFormat(x)
 			})
-			ui.Button(x, "压缩").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "压缩").Disabled(busy).OnClick(func() {
 				c.runMinify(x)
 			})
-			ui.Button(x, "转义").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "转义").Disabled(busy).OnClick(func() {
 				c.runEscape(x)
 			})
-			ui.Button(x, "反转义").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "反转义").Disabled(busy).OnClick(func() {
 				c.runUnescape(x)
 			})
-			ui.Button(x, "智能修复").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "智能修复").Disabled(busy).OnClick(func() {
 				c.runRepair(x)
 			})
-			ui.Button(x, "交换").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "交换").Disabled(busy).OnClick(func() {
 				c.swap()
 			})
-			ui.Button(x, "复制").OnClick(func() {
+			widgets.Button(x, "复制").OnClick(func() {
 				c.copyOutput(x)
 			})
-			ui.Button(x, "清空").Disabled(busy).OnClick(func() {
+			widgets.Button(x, "清空").Disabled(busy).OnClick(func() {
 				c.clear()
 			})
-			ui.Button(x, "新窗口").OnClick(func() {
+			widgets.Button(x, "新窗口").OnClick(func() {
 				if c.deps.OpenNewWindow != nil {
 					c.deps.OpenNewWindow()
 				}
@@ -164,8 +164,8 @@ func (c *Controller) viewStatus(x *ui.Context, p theme.Palette, st statusSnapsho
 	hasInput := c.input.Len() > 0
 	bar := ui.Row(x).
 		FillWidth().
-		Height(28).
-		Padding(0, 20).
+		Height(theme.StatusBarHeight).
+		Padding(0, theme.PagePadding).
 		AlignItems(ui.Center).
 		Gap(8)
 	bar.Children(func() {

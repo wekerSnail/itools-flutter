@@ -242,7 +242,7 @@ mygo/
 
 - 字号：tiny 11 / body 13 / title 15 / heading 18 / display 22；字重 400 / 500 / 600 / 700。
 - 圆角：卡片 6、控件 4、图标底 6、对话框 8。
-- 度量：顶栏 48、工具条 40、列表行 52、控件高 28–32；页面内边距 20，4pt 栅格。
+- 度量：顶栏 48、工具条 40、列表行 52、控件高 32、图标按钮 28；页面内边距 20，4pt 栅格。
 - 字体：内嵌 Inter Variable（`assets/fonts/InterVariable.ttf`，OFL），中文回落系统字体。
 - 卡片默认无阴影；只有对话框使用 `Shadow(0, 10, 30, 0, rgba(0, 0, 0, 0.3))`。
 - 主题切换：更新全局 palette 后对所有窗口调用 `Invalidate` 触发重绘；`system` 模式同时订阅 `mygo.Theme.OnUpdated`，`Apply` 时读取 `c.Preferences().Accent`。
@@ -255,7 +255,7 @@ mygo/
 - 主窗口页面：`Home` → `Settings` → `ThemeSettings` / `HotkeySettings` / `BackupSettings` / `AutostartSettings`。
 - 定时任务窗口页面：`SchedulerList` → `TaskEditor` / `TaskLogs`。
 - 其他工具窗口只有根页面，弹窗使用对话框。
-- 页面切换动效可选；先用直接切换，避免在 POC 前投入动画。
+- 页面切换统一走 `widgets.PageHost`：进入二级页时新页从右侧滑入 24 DIP 并淡入，返回时方向相反；旧页原地淡出，过渡 200ms。主窗口、设置与定时任务共用这一实现，控制器只需维护 `page` 与 `direction`（1 进入、-1 返回）。
 
 ### 5.7 错误处理与日志
 

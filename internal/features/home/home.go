@@ -29,10 +29,10 @@ func View(c *ui.Context, deps Deps) {
 	}
 	ui.Column(c).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(c, p, "Windows 工具集", "选择下方工具开始使用", nil, func() {
-			ui.Button(c, "设置").OnClick(deps.OpenSettings)
+			widgets.Button(c, "设置").OnClick(deps.OpenSettings)
 		})
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Row(c).FillWidth().Justify(ui.Center).Padding(20, 20).Children(func() {
+			ui.Row(c).FillWidth().Justify(ui.Center).Padding(theme.PagePadding, theme.PagePadding).Children(func() {
 				ui.Grid(c).FillWidth().MaxWidth(1040).Columns(columns).Gap(12).Children(func() {
 					for _, spec := range tools.All {
 						spec := spec

@@ -126,4 +126,7 @@ func TestPalette(t *testing.T) {
 	if uiTheme.Font != FontFamily || uiTheme.FontSize != FontSizeBody {
 		t.Fatalf("theme font = %q %v", uiTheme.Font, uiTheme.FontSize)
 	}
+	if uiTheme.Radius != RadiusControl {
+		t.Fatalf("control radius = %v, want %v", uiTheme.Radius, RadiusControl)
+	}
 }

@@ -44,13 +44,16 @@ type App struct {
 	windows   *Windows
 	tray      *mygo.Tray
 	page      mainPage
+	// pageDirection is which way the main window's next page slides: 1 into
+	// the settings, -1 back home.
+	pageDirection int
 
 	shutdownOnce sync.Once
 }
 
 // New returns an app before it starts.
 func New() *App {
-	return &App{page: pageHome}
+	return &App{page: pageHome, pageDirection: 1}
 }
 
 // Start initializes the services and creates the main window and the tray.
@@ -178,25 +181,29 @@ func (a *App) hotkeyActions() []hotkeys.Action {
 
 func (a *App) viewMain(c *ui.Context) {
 	a.theme.Apply(c)
-	switch a.page {
-	case pageSettings:
-		a.settings.View(c, func() {
-			a.page = pageHome
-			a.windows.InvalidateMain()
-		})
-	default:
-		home.View(c, home.Deps{
-			Palette: a.theme.Palette,
-			OpenTool: func(id string) {
-				a.windows.OpenTool(id, false)
-			},
-			OpenSettings: func() {
-				a.settings.Reset()
-				a.page = pageSettings
+	widgets.PageHost(c, a.page, a.pageDirection, func() {
+		switch a.page {
+		case pageSettings:
+			a.settings.View(c, func() {
+				a.page = pageHome
+				a.pageDirection = -1
 				a.windows.InvalidateMain()
-			},
-		})
-	}
+			})
+		default:
+			home.View(c, home.Deps{
+				Palette: a.theme.Palette,
+				OpenTool: func(id string) {
+					a.windows.OpenTool(id, false)
+				},
+				OpenSettings: func() {
+					a.settings.Reset()
+					a.page = pageSettings
+					a.pageDirection = 1
+					a.windows.InvalidateMain()
+				},
+			})
+		}
+	})
 }
 
 func (a *App) themed(view func(*ui.Context)) func(*ui.Context) {
@@ -242,7 +249,7 @@ func (a *App) viewPlaceholder(c *ui.Context, spec tools.Spec) {
 	ui.Column(c).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(c, p, spec.Title, spec.Description, nil, nil)
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).Padding(20, 20).Children(func() {
+			ui.Column(c).Padding(theme.PagePadding, theme.PagePadding).Children(func() {
 				widgets.EmptyState(c, p, spec.Icon, spec.Title+" 正在实现", "该模块将在后续版本接入。")
 			})
 		})

@@ -4,7 +4,6 @@ package settings
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -81,15 +80,7 @@ func (c *Controller) View(x *ui.Context, onHome func()) {
 		x.Toast(c.notice)
 		c.notice = ""
 	}
-	content := ui.Box(x).
-		Fill().
-		Key(c.page).
-		Transition(ui.ElementTransition{
-			Duration: 200 * time.Millisecond,
-			Enter:    &ui.Motion{X: 24 * float32(c.direction), Opacity: 1},
-			Exit:     &ui.Motion{Opacity: 0},
-		})
-	content.Children(func() {
+	widgets.PageHost(x, c.page, c.direction, func() {
 		switch c.page {
 		case pageTheme:
 			c.viewTheme(x, p)
@@ -134,7 +125,7 @@ func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "设置", "管理应用配置和偏好", onHome, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(20, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(12).Children(func() {
 				widgets.SectionHeader(x, p, "偏好入口", "", "info")
 				for _, entry := range entries {
 					entry := entry
@@ -155,9 +146,9 @@ func (c *Controller) viewTheme(x *ui.Context, p theme.Palette) {
 			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(20, 20).Gap(20).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(20).Children(func() {
 				c.section(x, p, "外观", "亮色、深色、纯黑或跟随系统", func() {
-					seg := ui.Segmented(x, &mode, "亮色", "深色", "纯黑", "跟随系统").Width(320)
+					seg := widgets.Segmented(x, p, &mode, "亮色", "深色", "纯黑", "跟随系统")
 					if seg.Changed() {
 						if err := manager.SetMode(modeValue(mode)); err != nil {
 							c.notice = "保存主题失败: " + err.Error()
@@ -214,7 +205,7 @@ func (c *Controller) viewTheme(x *ui.Context, p theme.Palette) {
 // at the right, as ApiGo's settings panel does.
 func (c *Controller) section(x *ui.Context, p theme.Palette, title, note string, controls func()) {
 	ui.Row(x).FillWidth().Gap(24).AlignItems(ui.Start).Children(func() {
-		ui.Column(x).Width(160).Gap(4).Children(func() {
+		ui.Column(x).Width(180).Gap(4).Children(func() {
 			ui.Text(x, title).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
 			ui.Text(x, note).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		})
@@ -230,7 +221,7 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(20, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(12).Children(func() {
 				widgets.SectionHeader(x, p, "全局热键", "应用在后台或最小化时仍然有效", "keyboard")
 				for _, action := range actions {
 					action := action
@@ -247,13 +238,13 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 								ui.Text(x, action.Description).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 								ui.Text(x, binding).FontSize(theme.FontSizeTiny).FontWeight(600).TextColor(p.Primary)
 							})
-							ui.Button(x, "设置").OnClick(func() {
+							widgets.Button(x, "设置").OnClick(func() {
 								c.recordingID = action.ID
 								c.recordOpen = true
 								c.pending = hotkeys.Config{}
 							})
 							if has {
-								ui.Button(x, "清除").OnClick(func() {
+								widgets.Button(x, "清除").OnClick(func() {
 									if err := manager.RemoveConfig(action.ID); err != nil {
 										c.notice = "清除失败: " + err.Error()
 										return
@@ -288,7 +279,7 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 					ui.Text(x, hotkeys.Display(c.pending)).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Primary)
 				}
 				ui.Row(x).FillWidth().Justify(ui.End).Children(func() {
-					ui.Button(x, "取消").OnClick(func() {
+					widgets.Button(x, "取消").OnClick(func() {
 						c.recordOpen = false
 					})
 				})
@@ -352,7 +343,7 @@ func (c *Controller) viewBackup(x *ui.Context, p theme.Palette) {
 			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(20, 20).Gap(16).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(16).Children(func() {
 				widgets.SectionHeader(x, p, "当前数据", "包含定时任务、日志、文件夹映射、主题与热键", "database")
 				widgets.SurfaceCard(x, p, func() {
 					ui.Column(x).Gap(4).Children(func() {
@@ -369,14 +360,14 @@ func (c *Controller) viewBackup(x *ui.Context, p theme.Palette) {
 					})
 				})
 				ui.Row(x).Gap(8).Children(func() {
-					exportButton := ui.PrimaryButton(x, "导出备份")
+					exportButton := widgets.PrimaryButton(x, "导出备份")
 					if busy {
 						exportButton.Disabled(true)
 					}
 					exportButton.OnClick(func() {
 						c.exportBackup()
 					})
-					importButton := ui.Button(x, "导入备份")
+					importButton := widgets.Button(x, "导入备份")
 					if busy {
 						importButton.Disabled(true)
 					}
@@ -399,7 +390,7 @@ func (c *Controller) viewAutostart(x *ui.Context, p theme.Palette) {
 			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(20, 20).Gap(16).Children(func() {
+			ui.Column(x).Padding(theme.PagePadding, theme.PagePadding).Gap(16).Children(func() {
 				widgets.SectionHeader(x, p, "启动选项", "开机自动启动，仅在托盘驻留", "power")
 				widgets.SurfaceCard(x, p, func() {
 					ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
