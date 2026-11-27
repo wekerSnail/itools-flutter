@@ -189,7 +189,7 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 
 func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 	collection, ok := c.selected()
-	ui.Box(x).Fill().Padding(12, 20).Children(func() {
+	ui.Box(x).Fill().Padding(12, 20).Gap(12).Children(func() {
 		ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Column(x).Grow(1).Gap(1).Children(func() {
 				name := "快捷方式"
