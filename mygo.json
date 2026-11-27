@@ -1,7 +1,7 @@
 {
   "name": "itools",
   "identifier": "com.snailer.itools",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "out": "dist",
   "ios": { "minimumSystemVersion": "17.0" },
   "android": { "minSdk": 26 }
