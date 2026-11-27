@@ -2,8 +2,10 @@ package json_formatter
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -65,6 +67,18 @@ type Controller struct {
 	// loadingOpen is the modal dialog's state; View alone reads and
 	// writes it, on the main thread.
 	loadingOpen bool
+
+	// marks are the issues the last check found, at markVersion. An edit
+	// makes them stale, so View drops them instead of drawing ranges
+	// that no longer point at what they marked.
+	markVersion uint64
+	marks       []Issue
+	// reveal asks the next frame to scroll to marks[0]: the check ran off
+	// the UI thread, which cannot move the view itself.
+	reveal bool
+	// painted is the version whose marks the input view shows, so View
+	// sets them when they change rather than on every frame.
+	painted uint64
 }
 
 // statusSnapshot is the part of the state that View draws.
@@ -108,6 +122,7 @@ func (c *Controller) View(x *ui.Context) {
 	c.outputView.Theme = tokenTheme
 	c.inputView.ContextMenu = c.jsonMenu(x, c.inputView)
 	c.outputView.ContextMenu = c.jsonMenu(x, c.outputView)
+	c.applyMarks(p)
 
 	state := c.snapshot()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
@@ -140,6 +155,9 @@ func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette, busy bool) {
 			})
 			widgets.Button(x, "智能修复").Disabled(busy).OnClick(func() {
 				c.runRepair(x)
+			})
+			widgets.Button(x, "JSON 校验").Disabled(busy).OnClick(func() {
+				c.runCheck(x)
 			})
 			widgets.Button(x, "交换").Disabled(busy).OnClick(func() {
 				c.swap()
@@ -403,6 +421,124 @@ func (c *Controller) runRepair(x *ui.Context) {
 	})
 }
 
+// runCheck marks the errors of the input and scrolls to the first of
+// them. It never repairs: the marked text stays as it is, for the user
+// to fix.
+func (c *Controller) runCheck(x *ui.Context) {
+	snap := c.input.Snapshot()
+	if snap.Len() == 0 {
+		x.Toast("请输入 JSON 内容")
+		return
+	}
+	if snap.Len() > liveValidateLimit {
+		x.Toast("内容过大，无法自动校验")
+		return
+	}
+	input, version := snap.String(), snap.Version()
+	go func() {
+		issue, found := Locate(input)
+		c.applyCheck(version, issue, found)
+	}()
+}
+
+// applyCheck keeps the issues a check found, for View to mark and reveal.
+// A result of an older text is dropped, as it marks bytes that changed.
+func (c *Controller) applyCheck(version uint64, issue Issue, found bool) {
+	message := ""
+	if found {
+		message = fmt.Sprintf("第 %d 行第 %d 列：%s", issue.Line, c.displayCol(issue), issue.Message)
+	}
+	c.mu.Lock()
+	if c.input.Version() != version {
+		c.mu.Unlock()
+		return
+	}
+	c.markVersion = version
+	if found {
+		c.marks = []Issue{issue}
+		c.reveal = true
+		c.valid = false
+		c.errorMessage = issue.Message
+		c.status = ""
+		c.skipped = false
+		c.message = message
+	} else {
+		c.marks, c.reveal = nil, false
+		c.valid = true
+		c.errorMessage = ""
+		c.status = "校验通过"
+		c.skipped = false
+		c.message = "JSON 有效"
+	}
+	c.mu.Unlock()
+	c.invalidate()
+}
+
+// displayCol turns the byte column of an issue into the column a reader
+// counts, in runes: the editor's Pos and Locate both count bytes.
+func (c *Controller) displayCol(issue Issue) int {
+	if issue.Col < 1 || issue.Line < 1 || issue.Line > c.input.LineCount() {
+		return issue.Col
+	}
+	line := c.input.Line(issue.Line - 1)
+	if issue.Col-1 > len(line) {
+		return issue.Col
+	}
+	return utf8.RuneCountInString(line[:issue.Col-1]) + 1
+}
+
+// applyMarks marks the issues of the last check in the input view and,
+// when the check asked for it, scrolls to the first one.
+func (c *Controller) applyMarks(p theme.Palette) {
+	version := c.input.Version()
+	c.mu.Lock()
+	marks, reveal := c.marks, c.reveal
+	if c.markVersion != version {
+		marks, reveal = nil, false
+		c.marks, c.markVersion, c.reveal = nil, 0, false
+	}
+	c.reveal = false
+	c.mu.Unlock()
+
+	if len(marks) == 0 {
+		if c.painted != 0 {
+			c.inputView.SetDiagnostics(version, nil)
+			c.inputView.GutterMarks = nil
+			c.inputView.LineBackgrounds = nil
+			c.painted = 0
+		}
+		return
+	}
+	if c.painted != version {
+		c.painted = version
+		diags := make([]editor.Diagnostic, 0, len(marks))
+		gutter := make([]editor.GutterMark, 0, len(marks))
+		backgrounds := make([]editor.LineBackground, 0, len(marks))
+		for _, issue := range marks {
+			diags = append(diags, editor.Diagnostic{
+				Start:    issue.Start,
+				End:      issue.End,
+				Severity: editor.SeverityError,
+				Message:  issue.Message,
+				Source:   "JSON",
+			})
+			line := issue.Line - 1
+			gutter = append(gutter, editor.GutterMark{Line: line, Color: p.Danger})
+			backgrounds = append(backgrounds, editor.LineBackground{
+				First: line,
+				Last:  line,
+				Color: p.Danger.Alpha(0.12),
+			})
+		}
+		c.inputView.SetDiagnostics(version, diags)
+		c.inputView.GutterMarks = gutter
+		c.inputView.LineBackgrounds = backgrounds
+	}
+	if reveal {
+		c.inputView.GoTo(editor.Pos{Line: marks[0].Line - 1, Col: marks[0].Col - 1})
+	}
+}
+
 func (c *Controller) swap() {
 	input := c.input.String()
 	output := c.output.String()
@@ -466,6 +602,9 @@ func (c *Controller) clear() {
 	c.skipped = false
 	c.pending = false
 	c.lastVersion = c.input.Version()
+	c.markVersion = 0
+	c.marks = nil
+	c.reveal = false
 	c.mu.Unlock()
 }
 

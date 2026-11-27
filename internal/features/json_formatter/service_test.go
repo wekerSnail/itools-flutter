@@ -67,6 +67,54 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+// Locate marks the byte at fault, and the quote or bracket left open by
+// a text that ends too early, so a check can scroll to it.
+func TestLocate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		found bool
+		line  int
+		col   int
+		at    string
+		want  string
+	}{
+		{"valid", `{"a":1}`, false, 0, 0, "", ""},
+		{"empty", "", false, 0, 0, "", ""},
+		{"trailing comma", `{"a":1,}`, true, 1, 8, "}", "用双引号括起来的键"},
+		{"missing comma", "{\n  \"a\": 1\n  \"b\": 2\n}", true, 3, 3, `"`, "缺少逗号"},
+		{"missing value", `{"a":}`, true, 1, 6, "}", "此处应为值"},
+		{"unclosed object", `{"a":1`, true, 1, 1, "{", "缺少 }"},
+		{"unclosed array", "[1,2", true, 1, 1, "[", "缺少 ]"},
+		{"unclosed string", `{"a":"x}`, true, 1, 6, `"`, "结束引号"},
+		{"trailing data", `{"a":1}{"b":2}`, true, 1, 8, "{", "顶层内容"},
+		{"bad literal", `{"a":tru}`, true, 1, 9, "}", "字面量"},
+		// Col counts bytes, as the editor's Pos does: "中" and "文" are
+		// three bytes each.
+		{"multibyte", `{"中":"文",}`, true, 1, 14, "}", "用双引号括起来的键"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			issue, found := Locate(test.input)
+			if found != test.found {
+				t.Fatalf("Locate(%q) found = %v, want %v", test.input, found, test.found)
+			}
+			if !found {
+				return
+			}
+			if issue.Line != test.line || issue.Col != test.col {
+				t.Fatalf("Locate(%q) at line %d col %d, want %d:%d", test.input, issue.Line, issue.Col, test.line, test.col)
+			}
+			if got := test.input[issue.Start:issue.End]; got != test.at {
+				t.Fatalf("Locate(%q) marks %q, want %q", test.input, got, test.at)
+			}
+			if !strings.Contains(issue.Message, test.want) {
+				t.Fatalf("Locate(%q) message = %q, want it to hold %q", test.input, issue.Message, test.want)
+			}
+		})
+	}
+}
+
 func TestEscapeUnescape(t *testing.T) {
 	input := "line1\nline2\t\"quoted\"\\"
 	escaped := Escape(input)

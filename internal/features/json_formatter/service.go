@@ -4,12 +4,14 @@ package json_formatter
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 )
 
@@ -155,6 +157,164 @@ func ErrorMessage(input string) string {
 			return "无效的JSON格式: " + err.Error()
 		}
 	}
+}
+
+// Issue is where a JSON document stops being valid.
+type Issue struct {
+	// Start and End are the bytes to mark, End after the character at
+	// fault, which is a whole rune.
+	Start, End int
+	// Line and Col are the 1-based position of Start, Col counted in
+	// bytes as the editor's Pos does.
+	Line, Col int
+	// Message says what is wrong, in Chinese where the case is known.
+	Message string
+}
+
+// Locate reports the first error of input, at the byte it is about. A
+// document that merely ends too early is marked at the quote or bracket
+// left open, which is where the missing part belongs.
+func Locate(input string) (Issue, bool) {
+	if input == "" || IsValid(input) {
+		return Issue{}, false
+	}
+	// The decoder validates the whole text before it builds a value, so a
+	// broken document costs a scan rather than a tree of values; only a
+	// document that parses would be built, and that one was already valid.
+	var value any
+	err := json.Unmarshal(unsafeBytes(input), &value)
+	offset, message := 0, "无效的JSON格式"
+	var syntax *json.SyntaxError
+	if errors.As(err, &syntax) {
+		offset, message = int(syntax.Offset), syntax.Error()
+	} else if err != nil {
+		message = err.Error()
+	}
+	if message == "unexpected end of JSON input" {
+		// The text ran out: the decoder reports no byte for that, so the
+		// construct still open is marked instead. An offset one past the
+		// last byte, as a trailing comma also reports, is still a byte.
+		if start, what, ok := unclosedConstruct(input); ok {
+			return issueAt(input, start, "JSON 内容不完整："+what), true
+		}
+		return issueAt(input, max(offset-1, 0), "JSON 内容不完整：意外结束"), true
+	}
+	return issueAt(input, max(offset-1, 0), localizeMessage(message)), true
+}
+
+// issueAt marks the rune at start, with the 1-based position of start.
+func issueAt(input string, start int, message string) Issue {
+	start = max(0, min(start, len(input)-1))
+	end := start + 1
+	if _, size := utf8.DecodeRuneInString(input[start:]); size > 1 {
+		end = start + size
+	}
+	line, col := lineCol(input, start)
+	return Issue{Start: start, End: end, Line: line, Col: col, Message: message}
+}
+
+// lineCol returns the 1-based line and byte column of offset.
+func lineCol(input string, offset int) (line, col int) {
+	line, start := 1, 0
+	for i := 0; i < offset && i < len(input); i++ {
+		if input[i] == '\n' {
+			line++
+			start = i + 1
+		}
+	}
+	return line, offset - start + 1
+}
+
+// unclosedConstruct returns what a text that ends too early left open:
+// the string whose closing quote is missing, or the innermost object or
+// array whose closing bracket is.
+func unclosedConstruct(input string) (int, string, bool) {
+	stack := make([]int, 0, 16)
+	inString, stringStart, escaped := false, -1, false
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if inString && ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			if inString {
+				stringStart = i
+			} else {
+				stringStart = -1
+			}
+			continue
+		}
+		if inString {
+			continue
+		}
+		switch ch {
+		case '{', '[':
+			stack = append(stack, i)
+		case '}', ']':
+			if n := len(stack); n > 0 {
+				open := input[stack[n-1]]
+				if open == '{' && ch == '}' || open == '[' && ch == ']' {
+					stack = stack[:n-1]
+				}
+			}
+		}
+	}
+	if inString && stringStart >= 0 {
+		return stringStart, "字符串缺少结束引号", true
+	}
+	if n := len(stack); n > 0 {
+		start := stack[n-1]
+		if input[start] == '{' {
+			return start, "对象没有闭合，缺少 }", true
+		}
+		return start, "数组没有闭合，缺少 ]", true
+	}
+	return 0, "", false
+}
+
+// localizeMessage turns the decoder's message into Chinese for the cases
+// a hand-edited payload usually hits, and keeps it as it is otherwise.
+func localizeMessage(message string) string {
+	const prefix = "invalid character "
+	if !strings.HasPrefix(message, prefix) {
+		if message == "unexpected end of JSON input" {
+			return "JSON 内容不完整：意外结束"
+		}
+		return message
+	}
+	rest := message[len(prefix):]
+	char, reason := rest, ""
+	if strings.HasPrefix(rest, "'") {
+		if j := strings.IndexByte(rest[1:], '\''); j >= 0 {
+			char = rest[:j+2]
+			reason = strings.TrimSpace(rest[j+2:])
+		}
+	}
+	phrases := []struct{ prefix, text string }{
+		{"looking for beginning of object key string", "此处应为用双引号括起来的键"},
+		{"looking for beginning of value", "此处应为值"},
+		{"after object key:value pair", "此处缺少逗号，或值后有多余字符"},
+		{"after object key", "键后缺少值"},
+		{"after array element", "此处缺少逗号，或元素后有多余字符"},
+		{"after top-level value", "顶层内容之后还有多余字符"},
+		{"in string", "字符串中出现非法字符"},
+		{"in literal", "字面量写错了"},
+		{"in numeric literal", "数字格式错误"},
+		{"after decimal point", "数字格式错误"},
+		{"in exponent", "数字格式错误"},
+	}
+	for _, p := range phrases {
+		if strings.HasPrefix(reason, p.prefix) {
+			return p.text + "（出现 " + char + "）"
+		}
+	}
+	return message
 }
 
 // LineProperty is the JSON property of one formatted line, for the
