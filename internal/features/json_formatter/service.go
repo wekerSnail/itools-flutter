@@ -331,7 +331,8 @@ func smartRepair(input string, budget time.Duration) (string, bool) {
 		return trimmed, true
 	}
 
-	repaired := replaceSingleQuotes(trimmed)
+	repaired := closeUnterminatedStrings(trimmed)
+	repaired = replaceSingleQuotes(repaired)
 	repaired = quoteUnquotedKeys(repaired)
 	repaired = removeTrailingCommas(repaired)
 	repaired = insertMissingCommas(repaired)
@@ -343,6 +344,66 @@ func smartRepair(input string, budget time.Duration) (string, bool) {
 		return truncated, true
 	}
 	return "", false
+}
+
+// closeUnterminatedStrings closes a string that runs past the end of its
+// line. A raw line break inside a JSON string is always an error, and a
+// payload that lost a closing quote continues on the next line with the
+// next member, so the string is closed right before the break: escaping
+// the break instead would swallow that member into the value. It runs
+// first, because every later pass tracks string boundaries to stay out
+// of them, and a string that never closes leaves them all guessing.
+func closeUnterminatedStrings(input string) string {
+	var buffer strings.Builder
+	buffer.Grow(len(input) + 16)
+	inString := false
+	escaped := false
+	changed := false
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			escaped = false
+			if inString && isLineBreak(ch) {
+				// A line that ends in a lone backslash: drop the dangling
+				// escape and close the string, keeping the break.
+				buffer.WriteByte('"')
+				inString = false
+				changed = true
+			} else {
+				buffer.WriteByte('\\')
+			}
+			buffer.WriteByte(ch)
+			continue
+		}
+		if ch == '\\' {
+			// Held back, so a backslash that only escapes the line break
+			// can be dropped instead of written.
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			buffer.WriteByte(ch)
+			continue
+		}
+		if inString && isLineBreak(ch) {
+			buffer.WriteByte('"')
+			inString = false
+			changed = true
+		}
+		buffer.WriteByte(ch)
+	}
+	if escaped {
+		buffer.WriteByte('\\')
+	}
+	if !changed {
+		return input
+	}
+	return buffer.String()
+}
+
+func isLineBreak(ch byte) bool {
+	return ch == '\n' || ch == '\r'
 }
 
 func replaceSingleQuotes(input string) string {

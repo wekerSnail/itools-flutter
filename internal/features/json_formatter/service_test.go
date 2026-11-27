@@ -145,6 +145,43 @@ func TestSmartRepairMissingComma(t *testing.T) {
 	}
 }
 
+// A value whose closing quote was lost swallows the line break and the
+// member after it, so the string has to be closed at the break: the
+// member on the next line is kept, and the missing comma follows it.
+func TestSmartRepairUnterminatedString(t *testing.T) {
+	input := `{
+  "code": "200",
+  "data": [
+    {
+      "configItemCode": "LABEL_PNT_SI
+      "configOptionDesc": "40x30",
+      "sortNo": 1
+    }
+  ],
+  "success": true
+}`
+	repaired, ok := SmartRepair(input)
+	if !ok {
+		t.Fatal("SmartRepair could not repair an unterminated string")
+	}
+	if !IsValid(repaired) {
+		t.Fatalf("repaired JSON is invalid:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, "\"configItemCode\": \"LABEL_PNT_SI\",\n") {
+		t.Fatalf("the string was not closed at the line break:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"configOptionDesc": "40x30"`) ||
+		!strings.Contains(repaired, `"sortNo": 1`) {
+		t.Fatalf("a member after the break was dropped:\n%s", repaired)
+	}
+
+	// A line ending in a lone backslash loses the dangling escape, not
+	// the string's last character or the member below it.
+	if got, ok := SmartRepair("{\"a\":\"x\\\n\"b\":2}"); !ok || got != "{\"a\":\"x\",\n\"b\":2}" {
+		t.Fatalf("dangling escape repaired to %q, %v", got, ok)
+	}
+}
+
 // A truncated large document must still be repaired, by cutting back to
 // the last complete value, and it must not take the quadratic scan over
 // every character the old fallback made.
