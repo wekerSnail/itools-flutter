@@ -130,8 +130,8 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 	ui.Box(x).Fill().Padding(12).Children(func() {
 		if len(c.collections) == 0 {
 			ui.Text(x, "还没有集合").
-				FontSize(12).
-				TextColor(p.MutedForeground).
+				FontSize(theme.FontSizeTiny).
+				TextColor(p.SubtleForeground).
 				Padding(10)
 			return
 		}
@@ -149,7 +149,7 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 				FillWidth().
 				Padding(10).
 				Margin(3).
-				Radius(8).
+				Radius(p.Radius).
 				AlignItems(ui.Center).
 				Gap(4).
 				OnClick(func() {
@@ -164,13 +164,13 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 			content.Children(func() {
 				ui.Column(row.Context).Grow(1).Gap(1).Children(func() {
 					ui.Text(row.Context, collection.Name).
-						FontSize(14).
+						FontSize(theme.FontSizeBody).
 						FontWeight(600).
 						TextColor(p.Foreground).
 						MaxLines(1)
 					ui.Text(row.Context, fmt.Sprintf("%d 个快捷方式", len(collection.Items))).
-						FontSize(12).
-						TextColor(p.MutedForeground)
+						FontSize(theme.FontSizeTiny).
+						TextColor(p.SubtleForeground)
 				})
 				widgets.IconButton(row.Context, p, "pencil", func() {
 					c.openCollectionForm(&collection)
@@ -196,11 +196,11 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 				if ok {
 					name = collection.Name
 				}
-				ui.Text(x, name).FontSize(15).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, name).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
 				if ok {
 					ui.Text(x, fmt.Sprintf("%d 个快捷方式", len(collection.Items))).
-						FontSize(12).
-						TextColor(p.MutedForeground)
+						FontSize(theme.FontSizeTiny).
+						TextColor(p.SubtleForeground)
 				}
 			})
 			ui.Button(x, "新建快捷方式").OnClick(func() {
@@ -245,13 +245,9 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 					}
 					switch {
 					case over && dragged.ShortcutID != shortcut.ID:
-						card.Background(p.CardHover)
-						card.Border(1, p.Ring)
-						card.Shadow(0, 2, 8, 0, p.Foreground.Alpha(0.08))
+						card.Background(p.Secondary)
 					case card.Hovered():
 						card.Background(p.CardHover)
-						card.Border(1, p.Ring)
-						card.Shadow(0, 2, 8, 0, p.Foreground.Alpha(0.08))
 					}
 					if card.DoubleClicked() {
 						c.openShortcut(shortcut.TargetPath)
@@ -261,13 +257,13 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 							widgets.IconContainer(x, p, "folder-open")
 							ui.Column(x).Grow(1).Gap(1).Children(func() {
 								ui.Text(x, shortcut.Name).
-									FontSize(14).
+									FontSize(theme.FontSizeBody).
 									FontWeight(600).
 									TextColor(p.Foreground).
 									MaxLines(1)
 								ui.Text(x, shortcut.TargetPath).
-									FontSize(12).
-									TextColor(p.MutedForeground).
+									FontSize(theme.FontSizeTiny).
+									TextColor(p.SubtleForeground).
 									MaxLines(1)
 							})
 							widgets.IconButton(x, p, "pencil", func() {
@@ -293,11 +289,12 @@ func (c *Controller) viewDialogs(x *ui.Context, p theme.Palette) {
 		ui.Modal(x, &c.modalOpen, func() {
 			panel := ui.Box(x).
 				Width(460).
-				Background(p.Card).
+				Background(p.Background).
 				Border(1, p.Border).
-				Radius(p.Radius).
-				Padding(18).
-				Gap(12)
+				Radius(theme.RadiusDialog).
+				Padding(20).
+				Gap(12).
+				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
 			panel.Children(func() {
 				title := "新建集合"
 				if c.modalKind == modalShortcut {
@@ -310,7 +307,7 @@ func (c *Controller) viewDialogs(x *ui.Context, p theme.Palette) {
 						title = "编辑集合"
 					}
 				}
-				ui.Text(x, title).FontSize(16).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, title).FontSize(theme.FontSizeTitle).FontWeight(600).TextColor(p.Foreground)
 				ui.TextInput(x, &c.form.name).Placeholder("名称").Label("名称")
 				if c.modalKind == modalShortcut {
 					ui.Row(x).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {

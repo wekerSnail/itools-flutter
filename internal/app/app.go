@@ -242,7 +242,7 @@ func (a *App) viewPlaceholder(c *ui.Context, spec tools.Spec) {
 	ui.Column(c).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(c, p, spec.Title, spec.Description, nil, nil)
 		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).Padding(16, 20).Children(func() {
+			ui.Column(c).Padding(20, 20).Children(func() {
 				widgets.EmptyState(c, p, spec.Icon, spec.Title+" 正在实现", "该模块将在后续版本接入。")
 			})
 		})

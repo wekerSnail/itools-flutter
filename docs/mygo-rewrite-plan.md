@@ -211,42 +211,41 @@ mygo/
 
 ### 5.5 主题与设计 Token
 
-两套主题、亮暗两种模式，配置文件 `settings/theme.json` 保持：
+界面按 ApiGo（MyGo Native UI 开源工具）的设计语言绘制；旧的 modern / luxury 两套风格已移除。
+
+配置文件 `settings/theme.json`：
 
 ```json
-{ "themeStyle": "modern", "themeMode": "system" }
+{ "themeAccent": "system", "themeMode": "system" }
 ```
 
-`themeStyle`：`modern` | `luxury`；`themeMode`：`light` | `dark` | `system`。
+- `themeAccent`：`system` | `blue` | `teal` | `green` | `indigo` | `purple` | `pink` | `orange` | `red` | `gray`；`system` 读取桌面强调色，取不到时回落 `#0078D4`。
+- `themeMode`：`light` | `dark` | `black` | `system`。
+- 旧文件里的 `themeStyle` 会被忽略，按默认（跟随系统强调色 + 跟随系统外观）加载。
 
-颜色（必须原样移植）：
+中性色：
 
-| Token | Modern Light | Modern Dark | Luxury Light | Luxury Dark |
-|---|---|---|---|---|
-| background | `#F8F9FE` | `#0F0F1A` | `#FAF8F5` | `#1A1814` |
-| foreground | `#1A1A2E` | `#E2E8F0` | `#2C2C2C` | `#E8E0D8` |
-| card | 同 background | `#1A1A2E` | 同 background | `#242018` |
-| primary | `#6366F1` | `#818CF8` | `#8B7355` | `#D4C5B2` |
-| primaryForeground | `#FFFFFF` | `#0F0F1A` | `#FFFFFF` | `#1A1814` |
-| secondary | `#EEF2FF` | `#1E1B4B` | `#F5F0EB` | `#2A2520` |
-| secondaryForeground | `#4338CA` | `#A5B4FC` | `#5C4A3A` | `#C4B5A2` |
-| muted | `#F1F5F9` | `#1E293B` | `#F0EBE3` | `#2A2520` |
-| mutedForeground | `#64748B` | `#94A3B8` | `#8C8C8C` | `#8C8070` |
-| border | `#E2E8F0` | `#2D2B5E` | `#E5DDD5` | `#3A3530` |
-| ring | `#6366F1` | `#818CF8` | `#8B7355` | `#D4C5B2` |
-| selection | `#C7D2FE` | `#3730A3` | `#D4C5B2` | `#5C4A3A` |
-| 圆角 | 12 | 12 | 16 | 16 |
+| Token | Light | Dark | Black |
+|---|---|---|---|
+| background | `#FFFFFF` | `#181818` | `#0F0F0F` |
+| surface | `#FAFAFA` | `#1C1C1E` | `#171717` |
+| surfaceHover | `#F3F4F6` | `#262626` | `#1F1F1F` |
+| divider | `#F3F4F6` | `#1F1F1F` | `#1F1F1F` |
+| border | `#E5E7EB` | `#2F2F33` | `#2A2A2E` |
+| text | `#111827` | `#FAFAFA` | `#FAFAFA` |
+| textSecondary | `#6B7280` | `#A3A3A3` | `#A1A1AA` |
+| textMuted | `#9CA3AF` | `#737373` | `#71717A` |
+
+强调色由 `themeAccent` 基色派生：hover 混白 18%，pressed 混黑 18%，图标底 12% alpha，selection 22% / 32%，focus 55% / 65%；主色上的文字按亮度阈值 150 在白色与 `#111827` 之间选择。
 
 设计 token：
 
-- 间距：4 / 8 / 16 / 24 / 32 / 48 / 64；页面 `padding=24`，段落间距 `32`，卡片内边距 `16–20`。
-- 字号：
-  - h1 32 / 700，h2 28 / 600，h3 24 / 600，h4 20 / 600
-  - body 16 / 400，bodySmall 14 / 400
-  - label 14 / 600，labelSmall 12 / 600，caption 12 / 400
-- 图标容器：44×44，圆角 12，背景 `secondary @ 45%`，图标 18。
-- 主题切换：更新全局 palette 后，对所有窗口调用 `win.Update` 触发重绘；`system` 模式订阅 `mygo.Theme.OnUpdated`。
-- 若 MyGo 的默认主题无法完全覆盖，允许在组件上显式使用 palette 配色；不要修改 MyGo 源码。
+- 字号：tiny 11 / body 13 / title 15 / heading 18 / display 22；字重 400 / 500 / 600 / 700。
+- 圆角：卡片 6、控件 4、图标底 6、对话框 8。
+- 度量：顶栏 48、工具条 40、列表行 52、控件高 28–32；页面内边距 20，4pt 栅格。
+- 字体：内嵌 Inter Variable（`assets/fonts/InterVariable.ttf`，OFL），中文回落系统字体。
+- 卡片默认无阴影；只有对话框使用 `Shadow(0, 10, 30, 0, rgba(0, 0, 0, 0.3))`。
+- 主题切换：更新全局 palette 后对所有窗口调用 `Invalidate` 触发重绘；`system` 模式同时订阅 `mygo.Theme.OnUpdated`，`Apply` 时读取 `c.Preferences().Accent`。
 
 ### 5.6 页面导航
 
@@ -662,7 +661,7 @@ $ico.ToBitmap().Save("mygo/assets/tray.png", [System.Drawing.Imaging.ImageFormat
 ### 8.4 `settings/theme.json`
 
 ```json
-{ "themeStyle": "modern", "themeMode": "system" }
+{ "themeAccent": "system", "themeMode": "system" }
 ```
 
 ### 8.5 `settings/hotkeys.json`

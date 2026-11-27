@@ -108,7 +108,7 @@ func (c *Controller) viewList(x *ui.Context, p theme.Palette) {
 			})
 		})
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(10).Children(func() {
+			ui.Column(x).Padding(20, 20).Gap(12).Children(func() {
 				widgets.SectionHeader(x, p, "任务总览", "", "clock")
 				if len(tasks) == 0 {
 					c.viewEmpty(x, p)
@@ -135,8 +135,8 @@ func (c *Controller) viewEmpty(x *ui.Context, p theme.Palette) {
 	widgets.SurfaceCard(x, p, func() {
 		ui.Column(x).FillWidth().Padding(10).Gap(8).AlignItems(ui.Center).Children(func() {
 			widgets.IconContainer(x, p, "calendar-clock")
-			ui.Text(x, "暂无定时任务").FontSize(14).FontWeight(600).TextColor(p.Foreground)
-			ui.Text(x, "点击右上角「添加任务」开始创建").FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "暂无定时任务").FontSize(theme.FontSizeHeading).FontWeight(600).TextColor(p.Foreground)
+			ui.Text(x, "点击右上角「添加任务」开始创建").FontSize(theme.FontSizeBody).TextColor(p.MutedForeground)
 			ui.PrimaryButton(x, "添加任务").OnClick(func() {
 				c.editing = newDraft()
 				c.page = pageEditor
@@ -146,6 +146,10 @@ func (c *Controller) viewEmpty(x *ui.Context, p theme.Palette) {
 }
 
 func (c *Controller) viewTaskCard(x *ui.Context, p theme.Palette, task Task) {
+	statusColor := p.Success
+	if !task.Enabled {
+		statusColor = p.MutedForeground
+	}
 	card := ui.Box(x).
 		FillWidth().
 		Padding(14).
@@ -155,14 +159,15 @@ func (c *Controller) viewTaskCard(x *ui.Context, p theme.Palette, task Task) {
 		Gap(10)
 	card.Children(func() {
 		ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
+			ui.Row(x).Size(6, 6).Radius(3).Background(statusColor)
 			ui.Column(x).Grow(1).Gap(2).Children(func() {
-				ui.Text(x, task.Name).FontSize(14).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, task.Name).FontSize(theme.FontSizeBody).FontWeight(600).TextColor(p.Foreground)
 				ui.Text(x, taskTypeLabel(task.Type)+" · "+scheduleText(task)).
-					FontSize(12).
-					TextColor(p.MutedForeground)
+					FontSize(theme.FontSizeTiny).
+					TextColor(p.SubtleForeground)
 			})
 			if !task.Enabled {
-				ui.Text(x, "已停用").FontSize(12).TextColor(p.MutedForeground)
+				widgets.StatusBadge(x, p, "已停用", p.MutedForeground)
 			}
 			enabled := task.Enabled
 			toggle := ui.Switch(x, &enabled)
@@ -216,7 +221,7 @@ func (c *Controller) viewEditor(x *ui.Context, p theme.Palette) {
 			})
 		})
 		ui.Scroll(x).Grow(1).Children(func() {
-			ui.Column(x).Padding(16, 20).Gap(12).Children(func() {
+			ui.Column(x).Padding(20, 20).Gap(16).Children(func() {
 				labeled(x, p, "任务名称", func() {
 					ui.TextInput(x, &d.name).Placeholder("例如：每日备份")
 				})
@@ -241,7 +246,7 @@ func (c *Controller) viewEditor(x *ui.Context, p theme.Palette) {
 							FillWidth().
 							Height(240).
 							Border(1, p.Border).
-							Radius(8).
+							Radius(p.Radius).
 							Clip().
 							Children(func() {
 								editor.View(x, d.script).Fill()
@@ -292,16 +297,16 @@ func (c *Controller) viewLogs(x *ui.Context, p theme.Palette) {
 		widgets.PageHeader(x, p, "运行日志", "最近 5 天、最多 2000 条", func() {
 			c.page = pageList
 		}, nil)
-		ui.Box(x).Grow(1).Padding(12, 20, 16).Children(func() {
+		ui.Box(x).Grow(1).Padding(16, 20).Children(func() {
 			ui.Box(x).
 				Fill().
 				Border(1, p.Border).
-				Radius(8).
+				Radius(p.Radius).
 				Clip().
 				Children(func() {
 					if len(logs) == 0 {
 						ui.Column(x).Fill().Center().Children(func() {
-							ui.Text(x, "暂无日志").FontSize(12).TextColor(p.MutedForeground)
+							ui.Text(x, "暂无日志").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 						})
 						return
 					}
@@ -309,7 +314,7 @@ func (c *Controller) viewLogs(x *ui.Context, p theme.Palette) {
 					ui.List(x, &c.logState, len(logs), func(index int) {
 						ui.Text(x, logs[index]).
 							Font("Consolas").
-							FontSize(12).
+							FontSize(theme.FontSizeTiny).
 							TextColor(p.Foreground).
 							Padding(3, 10)
 					}).Fill()
@@ -434,7 +439,7 @@ func draftFromTask(task Task) *draft {
 
 func labeled(x *ui.Context, p theme.Palette, label string, content func()) {
 	ui.Column(x).FillWidth().Gap(6).Children(func() {
-		ui.Text(x, label).FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, label)
 		content()
 	})
 }

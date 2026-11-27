@@ -16,7 +16,7 @@ func TestSaveAndLoad(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -37,7 +37,7 @@ func TestSaveAndLoad(t *testing.T) {
 	reloaded := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -63,7 +63,7 @@ func TestLoadSkipsCorruptEntries(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -96,7 +96,7 @@ func TestReorderShortcutPersists(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -128,7 +128,7 @@ func TestReorderShortcutPersists(t *testing.T) {
 	reloaded := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -152,7 +152,7 @@ func TestDragReordersShortcuts(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -199,7 +199,7 @@ func TestDragReordersCollections(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})
@@ -241,7 +241,7 @@ func TestClickChoosesCollection(t *testing.T) {
 	controller := New(Deps{
 		Store: st,
 		Palette: func() theme.Palette {
-			return theme.BuildPalette(theme.StyleModern, false)
+			return theme.BuildPalette(theme.AccentBlue, false)
 		},
 		Invalidate: func() {},
 	})

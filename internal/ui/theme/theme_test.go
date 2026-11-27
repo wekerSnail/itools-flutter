@@ -3,6 +3,8 @@ package theme
 import (
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
 	"itools/internal/core/store"
 )
 
@@ -12,8 +14,8 @@ func TestManagerRoundTrip(t *testing.T) {
 	if err := m.Load(); err != nil {
 		t.Fatal(err)
 	}
-	if m.Style() != StyleModern {
-		t.Fatalf("style = %q, want modern", m.Style())
+	if m.Accent() != AccentSystem {
+		t.Fatalf("accent = %q, want system", m.Accent())
 	}
 	if m.Mode() != ModeSystem {
 		t.Fatalf("mode = %q, want system", m.Mode())
@@ -22,10 +24,10 @@ func TestManagerRoundTrip(t *testing.T) {
 		t.Fatal("system mode with a light system reported dark")
 	}
 
-	if err := m.SetStyle(StyleLuxury); err != nil {
+	if err := m.SetAccent(AccentPurple); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.SetMode(ModeDark); err != nil {
+	if err := m.SetMode(ModeBlack); err != nil {
 		t.Fatal(err)
 	}
 
@@ -33,14 +35,31 @@ func TestManagerRoundTrip(t *testing.T) {
 	if err := reloaded.Load(); err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Style() != StyleLuxury {
-		t.Fatalf("style = %q, want luxury", reloaded.Style())
+	if reloaded.Accent() != AccentPurple {
+		t.Fatalf("accent = %q, want purple", reloaded.Accent())
 	}
-	if reloaded.Mode() != ModeDark {
-		t.Fatalf("mode = %q, want dark", reloaded.Mode())
+	if reloaded.Mode() != ModeBlack {
+		t.Fatalf("mode = %q, want black", reloaded.Mode())
 	}
 	if !reloaded.IsDark() {
-		t.Fatal("dark mode reported light")
+		t.Fatal("black mode reported light")
+	}
+}
+
+func TestLegacyThemeFileLoads(t *testing.T) {
+	st := store.New(t.TempDir())
+	if err := st.Write(themePath, []byte(`{"themeStyle":"luxury","themeMode":"dark"}`)); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(st, func() bool { return false })
+	if err := m.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if m.Accent() != AccentSystem {
+		t.Fatalf("accent = %q, want the default", m.Accent())
+	}
+	if m.Mode() != ModeDark {
+		t.Fatalf("mode = %q, want dark", m.Mode())
 	}
 }
 
@@ -57,27 +76,54 @@ func TestSystemModeFollowsSystem(t *testing.T) {
 	}
 }
 
+func TestSystemAccentReachesPalette(t *testing.T) {
+	m := NewManager(nil, func() bool { return false })
+	m.SetSystemAccent(ui.Hex("#FF00AA"))
+	if got := m.Palette().Primary; got != ui.Hex("#FF00AA") {
+		t.Fatalf("primary = %+v, want the desktop accent", got)
+	}
+	if err := m.SetAccent(AccentGreen); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Palette().Primary; got != ui.Hex("#10B981") {
+		t.Fatalf("primary = %+v, want green", got)
+	}
+}
+
 func TestPalette(t *testing.T) {
-	light := BuildPalette(StyleModern, false)
-	if light.Background.R != 0xF8 || light.Background.G != 0xF9 || light.Background.B != 0xFE {
-		t.Fatalf("modern light background = %+v", light.Background)
+	light := BuildPalette(AccentBlue, false)
+	if light.Background != ui.Hex("#FFFFFF") {
+		t.Fatalf("light background = %+v", light.Background)
 	}
-	if light.Radius != 12 {
-		t.Fatalf("modern radius = %v, want 12", light.Radius)
+	if light.Radius != RadiusCard {
+		t.Fatalf("radius = %v, want %v", light.Radius, RadiusCard)
 	}
-	luxury := BuildPalette(StyleLuxury, true)
-	if luxury.Radius != 16 {
-		t.Fatalf("luxury radius = %v, want 16", luxury.Radius)
+	if light.Primary != ui.Hex("#0078D4") {
+		t.Fatalf("primary = %+v, want blue", light.Primary)
 	}
-	if !luxury.Dark {
-		t.Fatal("luxury dark palette is not dark")
+	if light.Divider.A == 0 {
+		t.Fatal("divider is transparent")
+	}
+
+	black := BuildPaletteFor(AccentGreen, ui.Color{}, ModeBlack)
+	if !black.Dark {
+		t.Fatal("black palette is not dark")
+	}
+	if black.Background != ui.Hex("#0F0F0F") {
+		t.Fatalf("black background = %+v", black.Background)
+	}
+	if black.Primary != ui.Hex("#10B981") {
+		t.Fatalf("black primary = %+v, want green", black.Primary)
 	}
 
 	uiTheme := BuildTheme(light)
 	if uiTheme == nil {
 		t.Fatal("BuildTheme returned nil")
 	}
-	if uiTheme.Background.R != 0xF8 {
+	if uiTheme.Background != ui.Hex("#FFFFFF") {
 		t.Fatalf("theme background = %+v", uiTheme.Background)
+	}
+	if uiTheme.Font != FontFamily || uiTheme.FontSize != FontSizeBody {
+		t.Fatalf("theme font = %q %v", uiTheme.Font, uiTheme.FontSize)
 	}
 }

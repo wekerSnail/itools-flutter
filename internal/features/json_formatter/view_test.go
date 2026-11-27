@@ -15,7 +15,7 @@ import (
 // caret's line.
 func TestContextMenuHasJsonCopyItems(t *testing.T) {
 	controller := New(Deps{
-		Palette: func() theme.Palette { return theme.BuildPalette(theme.StyleModern, false) },
+		Palette: func() theme.Palette { return theme.BuildPalette(theme.AccentBlue, false) },
 	})
 	controller.input.Set("  \"code\": \"200\",\n")
 	tt := ui.NewTester(func(c *ui.Context) {
@@ -38,7 +38,7 @@ func TestContextMenuHasJsonCopyItems(t *testing.T) {
 // hides it once the operation ends.
 func TestLoadingDialogFollowsLongOperation(t *testing.T) {
 	controller := New(Deps{
-		Palette: func() theme.Palette { return theme.BuildPalette(theme.StyleModern, false) },
+		Palette: func() theme.Palette { return theme.BuildPalette(theme.AccentBlue, false) },
 	})
 	controller.input.Set(`{"a":1}`)
 	tt := ui.NewTester(controller.View, 900, 600)

@@ -8,7 +8,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
-	"itools/internal/ui/icons"
 	"itools/internal/ui/theme"
 	"itools/internal/ui/widgets"
 )
@@ -113,7 +112,7 @@ func (c *Controller) View(x *ui.Context) {
 	state := c.snapshot()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "JSON 格式化", "格式化、压缩、转义及智能修复", nil, nil)
-		c.viewToolbar(x, state.busy)
+		c.viewToolbar(x, p, state.busy)
 		c.viewStatus(x, p, state)
 		ui.SplitPercent(x, &c.split, func() {
 			c.viewInput(x, p)
@@ -124,37 +123,40 @@ func (c *Controller) View(x *ui.Context) {
 	c.viewLoading(x, p, state)
 }
 
-func (c *Controller) viewToolbar(x *ui.Context, busy bool) {
-	ui.Row(x).FillWidth().Wrap().Gap(6).Padding(12, 20).Children(func() {
-		ui.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
-			c.runFormat(x)
+func (c *Controller) viewToolbar(x *ui.Context, p theme.Palette, busy bool) {
+	ui.Column(x).FillWidth().Children(func() {
+		ui.Row(x).FillWidth().Wrap().Gap(6).Padding(8, 20).Background(p.Card).Children(func() {
+			ui.PrimaryButton(x, "格式化").Disabled(busy).OnClick(func() {
+				c.runFormat(x)
+			})
+			ui.Button(x, "压缩").Disabled(busy).OnClick(func() {
+				c.runMinify(x)
+			})
+			ui.Button(x, "转义").Disabled(busy).OnClick(func() {
+				c.runEscape(x)
+			})
+			ui.Button(x, "反转义").Disabled(busy).OnClick(func() {
+				c.runUnescape(x)
+			})
+			ui.Button(x, "智能修复").Disabled(busy).OnClick(func() {
+				c.runRepair(x)
+			})
+			ui.Button(x, "交换").Disabled(busy).OnClick(func() {
+				c.swap()
+			})
+			ui.Button(x, "复制").OnClick(func() {
+				c.copyOutput(x)
+			})
+			ui.Button(x, "清空").Disabled(busy).OnClick(func() {
+				c.clear()
+			})
+			ui.Button(x, "新窗口").OnClick(func() {
+				if c.deps.OpenNewWindow != nil {
+					c.deps.OpenNewWindow()
+				}
+			})
 		})
-		ui.Button(x, "压缩").Disabled(busy).OnClick(func() {
-			c.runMinify(x)
-		})
-		ui.Button(x, "转义").Disabled(busy).OnClick(func() {
-			c.runEscape(x)
-		})
-		ui.Button(x, "反转义").Disabled(busy).OnClick(func() {
-			c.runUnescape(x)
-		})
-		ui.Button(x, "智能修复").Disabled(busy).OnClick(func() {
-			c.runRepair(x)
-		})
-		ui.Button(x, "交换").Disabled(busy).OnClick(func() {
-			c.swap()
-		})
-		ui.Button(x, "复制").OnClick(func() {
-			c.copyOutput(x)
-		})
-		ui.Button(x, "清空").Disabled(busy).OnClick(func() {
-			c.clear()
-		})
-		ui.Button(x, "新窗口").OnClick(func() {
-			if c.deps.OpenNewWindow != nil {
-				c.deps.OpenNewWindow()
-			}
-		})
+		widgets.Divider(x, p)
 	})
 }
 
@@ -162,38 +164,32 @@ func (c *Controller) viewStatus(x *ui.Context, p theme.Palette, st statusSnapsho
 	hasInput := c.input.Len() > 0
 	bar := ui.Row(x).
 		FillWidth().
-		Margin(8, 20).
-		Padding(6, 10).
-		Radius(8).
-		Background(p.Muted).
-		Border(1, p.Border).
+		Height(28).
+		Padding(0, 20).
 		AlignItems(ui.Center).
-		Gap(6)
+		Gap(8)
 	bar.Children(func() {
 		switch {
 		case st.busy:
-			ui.Text(x, st.status).FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, st.status).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		case !hasInput:
-			ui.Text(x, "等待输入").FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "等待输入").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		case st.skipped && !st.valid:
-			ui.Text(x, "大文件：编辑后不自动校验").FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "大文件：编辑后不自动校验").FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		default:
-			icon := "x"
 			color := p.Danger
 			label := "JSON 无效"
 			if st.valid {
-				icon = "check"
 				color = p.Success
 				label = "JSON 有效"
 			}
-			ui.Icon(x, icons.Must(icon)).Width(14).Height(14).TextColor(color)
-			ui.Text(x, label).FontSize(12).TextColor(color)
+			widgets.StatusBadge(x, p, label, color)
 		}
 		if !st.busy && st.status != "" {
-			ui.Text(x, "· "+st.status).FontSize(12).TextColor(p.MutedForeground)
+			ui.Text(x, "· "+st.status).FontSize(theme.FontSizeTiny).TextColor(p.SubtleForeground)
 		}
 		if st.errorMessage != "" {
-			ui.Text(x, st.errorMessage).FontSize(12).TextColor(p.Danger).MaxLines(1)
+			ui.Text(x, st.errorMessage).FontSize(theme.FontSizeTiny).TextColor(p.Danger).MaxLines(1)
 		}
 	})
 }
@@ -215,30 +211,31 @@ func (c *Controller) viewLoading(x *ui.Context, p theme.Palette, st statusSnapsh
 	ui.Modal(x, &c.loadingOpen, func() {
 		panel := ui.Box(x).
 			Width(320).
-			Background(p.Card).
+			Background(p.Background).
 			Border(1, p.Border).
-			Radius(p.Radius).
+			Radius(theme.RadiusDialog).
 			Padding(20).
-			Gap(12)
+			Gap(12).
+			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
 		panel.Children(func() {
 			ui.Row(x).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(x)
-				ui.Text(x, st.status).FontSize(14).FontWeight(600).TextColor(p.Foreground)
+				ui.Text(x, st.status).FontSize(theme.FontSizeTitle).FontWeight(600).TextColor(p.Foreground)
 			})
 			ui.Text(x, "正在后台处理，窗口不会卡住。").
-				FontSize(12).
-				TextColor(p.MutedForeground)
+				FontSize(theme.FontSizeTiny).
+				TextColor(p.SubtleForeground)
 		})
 	})
 }
 
 func (c *Controller) viewInput(x *ui.Context, p theme.Palette) {
 	ui.Column(x).Fill().Gap(6).Children(func() {
-		ui.Text(x, "输入").FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, "输入")
 		ui.Box(x).
 			Fill().
 			Border(1, p.Border).
-			Radius(8).
+			Radius(p.Radius).
 			Clip().
 			Children(func() {
 				editor.View(x, c.inputView).Fill()
@@ -248,11 +245,11 @@ func (c *Controller) viewInput(x *ui.Context, p theme.Palette) {
 
 func (c *Controller) viewOutput(x *ui.Context, p theme.Palette) {
 	ui.Column(x).Fill().Gap(6).Children(func() {
-		ui.Text(x, "输出").FontSize(12).FontWeight(600).TextColor(p.MutedForeground)
+		widgets.FieldLabel(x, p, "输出")
 		ui.Box(x).
 			Fill().
 			Border(1, p.Border).
-			Radius(8).
+			Radius(p.Radius).
 			Clip().
 			Children(func() {
 				editor.View(x, c.outputView).Fill()
