@@ -334,6 +334,7 @@ func smartRepair(input string, budget time.Duration) (string, bool) {
 	repaired := replaceSingleQuotes(trimmed)
 	repaired = quoteUnquotedKeys(repaired)
 	repaired = removeTrailingCommas(repaired)
+	repaired = insertMissingCommas(repaired)
 	repaired = balanceBrackets(repaired)
 	if IsValid(repaired) {
 		return repaired, true
@@ -480,6 +481,128 @@ func removeTrailingCommas(input string) string {
 		return input
 	}
 	return buffer.String()
+}
+
+// insertMissingCommas adds the commas left out between two members or
+// elements, as a hand-edited or patched payload often does: a value line
+// followed by the next key with no comma between them. It must run
+// before balanceBrackets, which closes the containers, and it is what
+// repairs such a document at all: cutting back to the last complete
+// value cannot help, because every cut point after the missing comma
+// still contains the break.
+func insertMissingCommas(input string) string {
+	var buffer strings.Builder
+	buffer.Grow(len(input) + len(input)/16)
+	stack := make([]byte, 0, 16)
+	inString := false
+	escaped := false
+	// needComma is set once a value is complete: the next key, element
+	// or object without a comma in between is where one is missing.
+	needComma := false
+	changed := false
+	// Whitespace is held back until the next token, so an inserted comma
+	// ends the value's line instead of opening the next one.
+	pending := ""
+	flush := func() {
+		buffer.WriteString(pending)
+		pending = ""
+	}
+	for i := 0; i < len(input); i++ {
+		ch := input[i]
+		if escaped {
+			flush()
+			buffer.WriteByte(ch)
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			flush()
+			buffer.WriteByte(ch)
+			escaped = true
+			continue
+		}
+		if inString {
+			buffer.WriteByte(ch)
+			if ch == '"' {
+				inString = false
+				needComma = true
+			}
+			continue
+		}
+		if isSpace(ch) {
+			start := i
+			for i+1 < len(input) && isSpace(input[i+1]) {
+				i++
+			}
+			pending = input[start : i+1]
+			continue
+		}
+		if needComma && len(stack) > 0 && startsValue(ch) {
+			buffer.WriteByte(',')
+			changed = true
+			needComma = false
+		}
+		flush()
+		switch ch {
+		case '"':
+			inString = true
+			needComma = false
+			buffer.WriteByte(ch)
+		case '{', '[':
+			stack = append(stack, ch)
+			needComma = false
+			buffer.WriteByte(ch)
+		case '}':
+			if len(stack) > 0 && stack[len(stack)-1] == '{' {
+				stack = stack[:len(stack)-1]
+			}
+			needComma = true
+			buffer.WriteByte(ch)
+		case ']':
+			if len(stack) > 0 && stack[len(stack)-1] == '[' {
+				stack = stack[:len(stack)-1]
+			}
+			needComma = true
+			buffer.WriteByte(ch)
+		case ',', ':':
+			// The separator is there, so nothing is missing here. A
+			// comma also means the value before it is complete.
+			needComma = false
+			buffer.WriteByte(ch)
+		default:
+			if !isValueChar(ch) {
+				// Nothing a comma could separate: keep the byte as is.
+				buffer.WriteByte(ch)
+				needComma = false
+				continue
+			}
+			// A number or literal: copy the whole run, since only its
+			// end starts a new token that a comma would have to precede.
+			j := i
+			for j < len(input) && isValueChar(input[j]) {
+				j++
+			}
+			buffer.WriteString(input[i:j])
+			i = j - 1
+			needComma = true
+		}
+	}
+	flush()
+	if !changed {
+		return input
+	}
+	return buffer.String()
+}
+
+// startsValue reports whether ch can begin a key, element or value.
+func startsValue(ch byte) bool {
+	return ch == '"' || ch == '{' || ch == '[' || ch == '-' ||
+		(ch >= '0' && ch <= '9') || isIdentStart(ch)
+}
+
+// isValueChar reports whether ch belongs to a number or literal run.
+func isValueChar(ch byte) bool {
+	return isIdentChar(ch) || ch == '.' || ch == '+' || ch == '-'
 }
 
 func balanceBrackets(input string) string {

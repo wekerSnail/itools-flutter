@@ -87,6 +87,8 @@ func TestSmartRepair(t *testing.T) {
 		{`{name: 'John', age: 30,}`, `{"name": "John", "age": 30}`, true},
 		{`{"a":1,`, `{"a":1}`, true},
 		{`{"a":1,"b":2,}`, `{"a":1,"b":2}`, true},
+		{`{"a":1 "b":2}`, `{"a":1, "b":2}`, true},
+		{`[1 2]`, `[1, 2]`, true},
 		{`not json at all`, "", false},
 		{`{"ok":true}`, `{"ok":true}`, true},
 	}
@@ -108,6 +110,38 @@ func TestErrorMessage(t *testing.T) {
 	}
 	if got := ErrorMessage(`{"a":1}`); got != "" {
 		t.Fatalf("valid message = %q", got)
+	}
+}
+
+// A payload that lost the comma between a value and the next key is the
+// case the truncation fallback cannot recover: every cut point after the
+// missing comma still holds the break. The comma pass has to repair it
+// in place and keep the members on both sides.
+func TestSmartRepairMissingComma(t *testing.T) {
+	input := `{
+  "code": "200",
+  "data": [
+    {
+      "configOptionKey": "1",
+      "configOptionValue": "40mmx30mm"
+      "id": "5702396381628795494",
+      "sortNo": 1
+    }
+  ],
+  "success": true
+}`
+	repaired, ok := SmartRepair(input)
+	if !ok {
+		t.Fatal("SmartRepair could not repair a missing comma")
+	}
+	if !IsValid(repaired) {
+		t.Fatalf("repaired JSON is invalid:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"40mmx30mm",`+"\n      \"id\"") {
+		t.Fatalf("the comma was not inserted between the two members:\n%s", repaired)
+	}
+	if !strings.Contains(repaired, `"sortNo": 1`) {
+		t.Fatalf("a member after the missing comma was dropped:\n%s", repaired)
 	}
 }
 
