@@ -4,6 +4,7 @@ package settings
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -41,6 +42,9 @@ type Deps struct {
 type Controller struct {
 	deps Deps
 	page page
+	// direction is which way the next page slides: 1 into a sub-page, -1
+	// back to the menu.
+	direction int
 
 	recordOpen   bool
 	recordingID  string
@@ -57,17 +61,19 @@ type Controller struct {
 
 // New returns a settings controller.
 func New(deps Deps) *Controller {
-	return &Controller{deps: deps}
+	return &Controller{deps: deps, direction: 1}
 }
 
 // Reset returns to the settings menu.
 func (c *Controller) Reset() {
 	c.page = pageMenu
+	c.direction = 1
 	c.recordOpen = false
 	c.conflict = false
 }
 
-// View draws the current settings page.
+// View draws the current settings page, sliding it in over the one it
+// replaces.
 func (c *Controller) View(x *ui.Context, onHome func()) {
 	c.takePending()
 	p := c.deps.Palette()
@@ -75,18 +81,42 @@ func (c *Controller) View(x *ui.Context, onHome func()) {
 		x.Toast(c.notice)
 		c.notice = ""
 	}
-	switch c.page {
-	case pageTheme:
-		c.viewTheme(x, p)
-	case pageHotkeys:
-		c.viewHotkeys(x, p)
-	case pageBackup:
-		c.viewBackup(x, p)
-	case pageAutostart:
-		c.viewAutostart(x, p)
-	default:
-		c.viewMenu(x, p, onHome)
+	content := ui.Box(x).
+		Fill().
+		Key(c.page).
+		Transition(ui.ElementTransition{
+			Duration: 200 * time.Millisecond,
+			Enter:    &ui.Motion{X: 24 * float32(c.direction), Opacity: 1},
+			Exit:     &ui.Motion{Opacity: 0},
+		})
+	content.Children(func() {
+		switch c.page {
+		case pageTheme:
+			c.viewTheme(x, p)
+		case pageHotkeys:
+			c.viewHotkeys(x, p)
+		case pageBackup:
+			c.viewBackup(x, p)
+		case pageAutostart:
+			c.viewAutostart(x, p)
+		default:
+			c.viewMenu(x, p, onHome)
+		}
+	})
+}
+
+// navigate moves to a page, remembering which way the slide goes: into a
+// sub-page from the right, back to the menu from the left.
+func (c *Controller) navigate(next page) {
+	if next == c.page {
+		return
 	}
+	if next == pageMenu {
+		c.direction = -1
+	} else if c.page == pageMenu {
+		c.direction = 1
+	}
+	c.page = next
 }
 
 func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
@@ -109,7 +139,7 @@ func (c *Controller) viewMenu(x *ui.Context, p theme.Palette, onHome func()) {
 				for _, entry := range entries {
 					entry := entry
 					widgets.MenuCard(x, p, entry.icon, entry.title, entry.description, func() {
-						c.page = entry.page
+						c.navigate(entry.page)
 					})
 				}
 			})
@@ -122,7 +152,7 @@ func (c *Controller) viewTheme(x *ui.Context, p theme.Palette) {
 	mode := modeIndex(manager.Mode())
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "主题设置", "外观与强调色", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
 			ui.Column(x).Padding(20, 20).Gap(20).Children(func() {
@@ -197,7 +227,7 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 	actions := manager.Actions()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "热键设置", "配置全局快捷键，快速触发常用操作", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
 			ui.Column(x).Padding(20, 20).Gap(12).Children(func() {
@@ -319,7 +349,7 @@ func (c *Controller) viewBackup(x *ui.Context, p theme.Palette) {
 	busy := c.isBusy()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "备份还原", "导出当前数据或导入历史备份", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
 			ui.Column(x).Padding(20, 20).Gap(16).Children(func() {
@@ -366,7 +396,7 @@ func (c *Controller) viewAutostart(x *ui.Context, p theme.Palette) {
 	enabled := c.deps.OpenAtLogin()
 	ui.Column(x).Fill().Background(p.Background).Children(func() {
 		widgets.PageHeader(x, p, "开机自启", "设置开机时自动启动应用", func() {
-			c.page = pageMenu
+			c.navigate(pageMenu)
 		}, nil)
 		ui.Scroll(x).Grow(1).Children(func() {
 			ui.Column(x).Padding(20, 20).Gap(16).Children(func() {
