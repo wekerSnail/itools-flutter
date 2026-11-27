@@ -139,7 +139,7 @@ func (c *Controller) viewTheme(x *ui.Context, p theme.Palette) {
 				})
 				widgets.Divider(x, p)
 				c.section(x, p, "主题色", "按钮、选中态与焦点环的颜色", func() {
-					ui.Row(x).Gap(6).AlignItems(ui.Center).Children(func() {
+					ui.Row(x).Wrap().Gap(6).AlignItems(ui.Center).Children(func() {
 						for _, spec := range theme.Accents {
 							spec := spec
 							selected := manager.Accent() == spec.ID
@@ -243,12 +243,7 @@ func (c *Controller) viewHotkeys(x *ui.Context, p theme.Palette) {
 		ui.Modal(x, &c.recordOpen, func() {
 			panel := ui.Box(x).
 				Width(400).
-				Background(p.Background).
-				Border(1, p.Border).
-				Radius(theme.RadiusDialog).
-				Padding(20).
 				Gap(12).
-				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3)).
 				Focusable().
 				AutoFocus().
 				HandleInput(func(event ui.InputEvent) bool {

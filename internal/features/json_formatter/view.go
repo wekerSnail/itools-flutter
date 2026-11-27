@@ -211,12 +211,7 @@ func (c *Controller) viewLoading(x *ui.Context, p theme.Palette, st statusSnapsh
 	ui.Modal(x, &c.loadingOpen, func() {
 		panel := ui.Box(x).
 			Width(320).
-			Background(p.Background).
-			Border(1, p.Border).
-			Radius(theme.RadiusDialog).
-			Padding(20).
-			Gap(12).
-			Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
+			Gap(12)
 		panel.Children(func() {
 			ui.Row(x).Gap(10).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(x)

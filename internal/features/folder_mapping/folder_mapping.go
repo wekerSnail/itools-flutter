@@ -127,7 +127,7 @@ func (c *Controller) View(x *ui.Context) {
 }
 
 func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
-	ui.Box(x).Fill().Padding(12).Children(func() {
+	ui.Box(x).Fill().Padding(12, 20).Children(func() {
 		if len(c.collections) == 0 {
 			ui.Text(x, "还没有集合").
 				FontSize(theme.FontSizeTiny).
@@ -189,7 +189,7 @@ func (c *Controller) viewCollections(x *ui.Context, p theme.Palette) {
 
 func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 	collection, ok := c.selected()
-	ui.Box(x).Fill().Padding(12).Children(func() {
+	ui.Box(x).Fill().Padding(12, 20).Children(func() {
 		ui.Row(x).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Column(x).Grow(1).Gap(1).Children(func() {
 				name := "快捷方式"
@@ -287,15 +287,10 @@ func (c *Controller) viewShortcuts(x *ui.Context, p theme.Palette) {
 func (c *Controller) viewDialogs(x *ui.Context, p theme.Palette) {
 	if c.modalOpen {
 		ui.Modal(x, &c.modalOpen, func() {
-			panel := ui.Box(x).
-				Width(460).
-				Background(p.Background).
-				Border(1, p.Border).
-				Radius(theme.RadiusDialog).
-				Padding(20).
-				Gap(12).
-				Shadow(0, 10, 30, 0, ui.RGBA(0, 0, 0, 0.3))
-			panel.Children(func() {
+			// The modal supplies the panel: its padding, radius, background
+			// and shadow. A box of our own would draw a second border and a
+			// shadow inside the panel.
+			ui.Column(x).Width(460).Gap(12).Children(func() {
 				title := "新建集合"
 				if c.modalKind == modalShortcut {
 					title = "新建快捷方式"
